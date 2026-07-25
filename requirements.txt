@@ -1,0 +1,6 @@
+streamlit
+supabase
+google-genai
+Pillow
+qrcode[pil]
+matplotlib
