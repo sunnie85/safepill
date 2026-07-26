@@ -1492,7 +1492,7 @@ thuốc trong CÙNG một đơn/toa — nếu đơn chỉ ghi thông tin này m�
 lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn đó.
 """
                         response = ai_gemini.models.generate_content(
-                            model="gemini-2.5-flash",
+                            model="gemini-flash-lastest",
                             contents=[pil_img, prompt_khkt],
                         )
                         parsed_meds = extract_json_array(response.text)
