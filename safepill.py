@@ -1683,7 +1683,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                         if GEMINI_SEARCH_GROUNDING_AVAILABLE:
                             try:
                                 response = ai_gemini.models.generate_content(
-                                    model="gemini-2.5-flash",
+                                    model="gemini-flash-latest",
                                     contents=full_prompt,
                                     config=genai_types.GenerateContentConfig(
                                         tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
@@ -1692,11 +1692,11 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                             except Exception:
                                 # SDK/model hiện tại không hỗ trợ grounding -> quay về gọi thường
                                 response = ai_gemini.models.generate_content(
-                                    model="gemini-2.5-flash", contents=full_prompt,
+                                    model="gemini-flash-latest", contents=full_prompt,
                                 )
                         else:
                             response = ai_gemini.models.generate_content(
-                                model="gemini-2.5-flash", contents=full_prompt,
+                                model="gemini-flash-latest", contents=full_prompt,
                             )
                         ai_response = response.text or ""
 
