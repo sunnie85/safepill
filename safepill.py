@@ -1395,7 +1395,7 @@ else:
                         unsafe_allow_html=True,
                     )
                     cols[2].markdown(f"_{med.get('Thời điểm', '')}_")
-                    checked = cols[3].checkbox("Đã uống", value=taken, key=key_name)
+                    checked = cols[3].checkbox("Đã uống", value=taken, key=f"checked_{key_name}_{id(med)}")
                     missed_clicked = cols[4].button(" Bỏ lỡ", key=f"missed_{key_name}")
                     # ---- Mới: nút đọc to (Text-to-Speech), có thể tắt trong Cài đặt ----
                     if st.session_state.tts_enabled:
