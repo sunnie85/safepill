@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import time
 import re
 import os
+import unicodedata
 import hashlib
 import json
 import io
@@ -398,6 +399,60 @@ def check_food_herb_conflicts(med_data: list) -> list:
         if name in VN_FOOD_HERB_DATABASE:
             for warn in VN_FOOD_HERB_DATABASE[name]:
                 results.append({"thuoc": name, **warn})
+    return results
+
+
+def _strip_accents(text: str) -> str:
+    """Bỏ dấu tiếng Việt để so khớp linh hoạt (VD: 'rượu' ~ 'ruou')."""
+    normalized = unicodedata.normalize("NFD", text)
+    without_marks = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    return without_marks.replace("đ", "d").replace("Đ", "D")
+
+
+def _fuzzy_food_item_match(user_input: str, item_field: str) -> bool:
+    """
+    So khớp linh hoạt giữa nội dung người dùng gõ (VD: "rượu", "bưởi") và trường "item"
+    trong VN_FOOD_HERB_DATABASE (VD: "Rượu bia", "Nước ép bưởi / bưởi") — không phân biệt
+    hoa/thường, không phân biệt dấu, và tách theo từng cụm ngăn cách bởi "/" hoặc ",".
+    """
+    if not user_input or not user_input.strip():
+        return False
+    ui = _strip_accents(user_input).strip().lower()
+    for part in re.split(r"[/,]", item_field):
+        p = _strip_accents(part).strip().lower()
+        # Bỏ phần chú thích trong ngoặc để so khớp gọn hơn, VD: "Thuốc nam (đương quy...)"
+        p_main = re.sub(r"\(.*?\)", "", p).strip()
+        if not p_main:
+            continue
+        if ui in p_main or p_main in ui:
+            return True
+    return False
+
+
+def check_food_herb_pair(input_a: str, input_b: str) -> list:
+    """
+    MỚI — Dùng cho công cụ tra cứu thủ công (tab "Tra cứu tương tác"): người dùng có thể gõ
+    một thuốc và MỘT THỰC PHẨM/THẢO DƯỢC (VD: Aspirin + rượu) chứ không chỉ hai tên thuốc.
+    check_interaction() chỉ tra trong INTERACTION_DATABASE (thuốc–thuốc) nên trước đây bỏ sót
+    hoàn toàn các cặp thuốc–thực phẩm dù VN_FOOD_HERB_DATABASE đã có sẵn dữ liệu. Hàm này đối
+    chiếu CẢ HAI CHIỀU nhập liệu với VN_FOOD_HERB_DATABASE để không bỏ sót cảnh báo.
+    """
+    results = []
+    a_clean, b_clean = input_a.strip(), input_b.strip()
+    a_key, b_key = a_clean.capitalize(), b_clean.capitalize()
+
+    # Chiều 1: A là thuốc có trong CSDL, B là thực phẩm/thảo dược khớp với ô nhập
+    if a_key in VN_FOOD_HERB_DATABASE:
+        for warn in VN_FOOD_HERB_DATABASE[a_key]:
+            if _fuzzy_food_item_match(b_clean, warn["item"]):
+                results.append({"thuoc": a_key, **warn})
+
+    # Chiều 2: B là thuốc có trong CSDL, A là thực phẩm/thảo dược khớp với ô nhập
+    if b_key in VN_FOOD_HERB_DATABASE:
+        for warn in VN_FOOD_HERB_DATABASE[b_key]:
+            if _fuzzy_food_item_match(a_clean, warn["item"]):
+                results.append({"thuoc": b_key, **warn})
+
     return results
 
 
@@ -1492,7 +1547,7 @@ thuốc trong CÙNG một đơn/toa — nếu đơn chỉ ghi thông tin này m�
 lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn đó.
 """
                         response = ai_gemini.models.generate_content(
-                            model="gemini-flash-lastest",
+                            model="gemini-2.5-flash",
                             contents=[pil_img, prompt_khkt],
                         )
                         parsed_meds = extract_json_array(response.text)
@@ -1628,23 +1683,39 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
     # ---------------- TAB TRA CỨU TƯƠNG TÁC ----------------
     with tab_matrix:
         st.header(" Tra cứu & mô phỏng tương tác thuốc")
-        st.caption("Kiểm tra nhanh 2 loại thuốc bất kỳ trước khi phối hợp sử dụng.")
+        st.caption("Kiểm tra nhanh 2 loại thuốc, hoặc 1 thuốc với thực phẩm/thảo dược (VD: rượu bia, "
+                   "bưởi, thuốc nam...), trước khi phối hợp sử dụng.")
         col_t1, col_t2 = st.columns(2)
         t1 = col_t1.text_input("Thuốc A", value="Aspirin")
-        t2 = col_t2.text_input("Thuốc B", value="Ibuprofen")
+        t2 = col_t2.text_input("Thuốc B (hoặc thực phẩm/thảo dược)", value="Ibuprofen")
         if st.button("Kiểm tra tương tác", type="primary", use_container_width=True):
-            result = check_interaction(t1, t2)
-            if result:
-                st.error(f" PHÁT HIỆN TƯƠNG TÁC (Mức độ: {result['severity']})")
-                st.markdown(f"- **Cặp thuốc:** `{result['thuoc_1']}` và `{result['thuoc_2']}`\n"
-                            f"- **Hệ quả:** {result['effect']}\n"
-                            f"- **Nguồn tham khảo:** {result.get('nguon', DEFAULT_SOURCE_NOTE)}\n"
+            # ---- SỬA LỖI: trước đây chỉ gọi check_interaction() (chỉ tra thuốc–thuốc),
+            # nên các cặp thuốc–thực phẩm/thảo dược (VD: Aspirin + rượu) luôn báo "an toàn"
+            # dù VN_FOOD_HERB_DATABASE đã có sẵn dữ liệu. Giờ đối chiếu CẢ 2 cơ sở dữ liệu. ----
+            drug_result = check_interaction(t1, t2)
+            food_results = check_food_herb_pair(t1, t2)
+
+            if drug_result:
+                st.error(f" PHÁT HIỆN TƯƠNG TÁC THUỐC–THUỐC (Mức độ: {drug_result['severity']})")
+                st.markdown(f"- **Cặp thuốc:** `{drug_result['thuoc_1']}` và `{drug_result['thuoc_2']}`\n"
+                            f"- **Hệ quả:** {drug_result['effect']}\n"
+                            f"- **Nguồn tham khảo:** {drug_result.get('nguon', DEFAULT_SOURCE_NOTE)}\n"
                             f"- **Khuyến cáo:** Không tự ý phối hợp, hỏi ý kiến bác sĩ/dược sĩ.")
-            else:
+
+            if food_results:
+                for fr in food_results:
+                    st.warning(f" PHÁT HIỆN TƯƠNG TÁC THUỐC–THỰC PHẨM/THẢO DƯỢC (Mức độ: {fr['severity']})")
+                    st.markdown(f"- **{fr['thuoc']}** ↔ *{fr['item']}*\n"
+                                f"- **Hệ quả:** {fr['effect']}\n"
+                                f"- **Nguồn tham khảo:** {fr.get('nguon', DEFAULT_SOURCE_NOTE)}\n"
+                                f"- **Khuyến cáo:** Tránh phối hợp, hỏi ý kiến bác sĩ/dược sĩ nếu cần dùng chung.")
+
+            if not drug_result and not food_results:
                 st.success(f" Chưa ghi nhận tương tác giữa `{t1.strip().capitalize()}` và "
-                           f"`{t2.strip().capitalize()}` trong cơ sở dữ liệu hiện tại.")
-        st.caption("Lưu ý: cơ sở dữ liệu minh họa chỉ bao gồm một số hoạt chất phổ biến, "
-                   "không thay thế tra cứu dược thư chính thức.")
+                           f"`{t2.strip().capitalize()}` trong cơ sở dữ liệu hiện tại "
+                           f"(đã kiểm tra cả thuốc–thuốc và thuốc–thực phẩm/thảo dược).")
+        st.caption("Lưu ý: cơ sở dữ liệu minh họa chỉ bao gồm một số hoạt chất và thực phẩm/thảo dược "
+                   "phổ biến, không thay thế tra cứu dược thư chính thức.")
 
     # ---------------- TAB HỎI ĐÁP AI ----------------
     with tab_expert:
