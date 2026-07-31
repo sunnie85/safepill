@@ -1380,7 +1380,7 @@ else:
                 )
                 for med in schedule:
                     hhmm = resolve_reminder_time(med.get("Thời điểm", ""))
-                    key_name = f"task_{med.get('Tên thuốc')}_{hhmm}"
+                    key_name = f"task_{med.get('Tên thuốc')}_{hhmm}_{id(med)}"
                     taken = st.session_state.adherence_logs.get(key_name, False)
                     # Chỉ số thật của thuốc này trong med_data (để trừ số lượng còn lại đúng bản ghi)
                     real_idx = next((i for i, m in enumerate(st.session_state.med_data) if m is med), None)
@@ -1395,7 +1395,7 @@ else:
                         unsafe_allow_html=True,
                     )
                     cols[2].markdown(f"_{med.get('Thời điểm', '')}_")
-                    checked = cols[3].checkbox("Đã uống", value=taken, key=f"checked_{key_name}_{id(med)}")
+                    checked = cols[3].checkbox("Đã uống", value=taken, key=f"checked_{key_name}")
                     missed_clicked = cols[4].button(" Bỏ lỡ", key=f"missed_{key_name}")
                     # ---- Mới: nút đọc to (Text-to-Speech), có thể tắt trong Cài đặt ----
                     if st.session_state.tts_enabled:
