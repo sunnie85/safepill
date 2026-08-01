@@ -43,7 +43,7 @@ except ImportError:
 # =====================================================================================
 st.set_page_config(
     page_title="SafePill – Trợ Lý Dược Phẩm Thông Minh",
-    page_icon=" ",
+    page_icon="💊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -54,7 +54,7 @@ from theme_snippet import apply_safepill_theme
 apply_safepill_theme()
 
 DISCLAIMER = (
-    " SafePill là công cụ hỗ trợ nhắc nhở & tra cứu thông tin thuốc, "
+    "⚠️ SafePill là công cụ hỗ trợ nhắc nhở & tra cứu thông tin thuốc, "
     "KHÔNG thay thế chẩn đoán hoặc chỉ định của bác sĩ/dược sĩ. "
     "Trong trường hợp khẩn cấp, vui lòng liên hệ cơ sở y tế gần nhất."
 )
@@ -76,7 +76,7 @@ def load_secrets():
             with open(json_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
         except Exception as e:
-            st.error(f" Không đọc được file appsettings/appsettings.json (sai định dạng JSON?): {e}")
+            st.error(f"❌ Không đọc được file appsettings/appsettings.json (sai định dạng JSON?): {e}")
             st.stop()
 
     def get_value(key):
@@ -93,7 +93,7 @@ def load_secrets():
     missing = [k for k, v in values.items() if not v]
     if missing:
         st.error(
-            f" Thiếu cấu hình: {', '.join(missing)}. "
+            f"❌ Thiếu cấu hình: {', '.join(missing)}. "
             f"Hãy mở file appsettings/appsettings.json (đổi tên từ appsettings.example.json, "
             f"đặt cùng thư mục với safepill.py) và điền đầy đủ URL/Key vào đó, rồi chạy lại ứng dụng."
         )
@@ -114,7 +114,7 @@ try:
     SERVICES_OK = True
 except Exception as e:
     SERVICES_OK = False
-    st.error(f" Không thể khởi tạo kết nối dịch vụ: {e}")
+    st.error(f"❌ Không thể khởi tạo kết nối dịch vụ: {e}")
     st.stop()
 
 TABLE = "thuy_tien"
@@ -468,7 +468,7 @@ def check_food_herb_pair(input_a: str, input_b: str) -> list:
 # 3B. HÀM TIỆN ÍCH: NHẮC NHỞ TỪ NGƯỜI THÂN (Supabase)
 # =====================================================================================
 FAMILY_TABLE_MISSING_MSG = (
-    " Chưa thể dùng tính năng người thân vì cơ sở dữ liệu chưa có bảng "
+    "⚠️ Chưa thể dùng tính năng người thân vì cơ sở dữ liệu chưa có bảng "
     "'safepill_family_links' / 'safepill_family_reminders'. Hãy chạy migration SQL "
     "(xem ghi chú phía trên phần khai báo TABLE trong code) rồi tải lại trang."
 )
@@ -588,7 +588,7 @@ def send_escalation_alert_to_family(owner_phone: str, owner_name: str, drug_name
     members = fetch_family_members(owner_phone)
     accepted = [m for m in members if m.get("status") == "accepted"]
     sent_to = []
-    alert_msg = (f" CẢNH BÁO: {owner_name or owner_phone} đã bỏ lỡ {miss_count} lần liên tiếp "
+    alert_msg = (f"🚨 CẢNH BÁO: {owner_name or owner_phone} đã bỏ lỡ {miss_count} lần liên tiếp "
                  f"thuốc '{drug_name}' (mức độ nghiêm trọng cao). Vui lòng gọi điện hỏi thăm ngay!")
     for member in accepted:
         member_phone = member.get("member_phone")
@@ -620,6 +620,17 @@ def reset_missed_dose(drug_name: str) -> None:
 AUTO_ESCALATION_MINUTES = 30
 
 
+def build_adherence_task_key(drug_name: str, hhmm: str, med_obj) -> str:
+    """
+    Sinh key nhắc nhở DUY NHẤT và NHẤT QUÁN cho một task (thuốc + giờ hẹn), dùng chung
+    giữa tab "Hôm nay" và bộ kiểm tra tự động cảnh báo quá giờ. TRƯỚC ĐÂY 2 nơi build key
+    khác công thức nhau (1 nơi có kèm id(med_obj), 1 nơi không) khiến hàm tự động cảnh báo
+    luôn tra ra "chưa uống" dù người dùng đã tick "Đã uống", gây báo động giả liên tục cho
+    người thân. Nay gộp về DUY NHẤT một hàm để tránh lệch key.
+    """
+    return f"task_{drug_name}_{hhmm}_{id(med_obj)}"
+
+
 def check_and_auto_escalate_overdue_doses(med_data_valid: list) -> list:
     """
     Rà soát các thuốc trong lịch hôm nay: nếu đã quá AUTO_ESCALATION_MINUTES phút kể từ giờ hẹn
@@ -635,12 +646,13 @@ def check_and_auto_escalate_overdue_doses(med_data_valid: list) -> list:
     chạy theo lịch cron) độc lập với phiên làm việc của trình duyệt.
     """
     now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
     newly_escalated = []
     for med in med_data_valid:
         drug_name = med.get("Tên thuốc", "")
         hhmm = resolve_reminder_time(med.get("Thời điểm", ""))
-        key_name = f"task_{drug_name}_{hhmm}"
+        # SỬA LỖI: dùng đúng cùng công thức key với tab "Hôm nay" (build_adherence_task_key),
+        # trước đây key ở đây thiếu id(med) nên không bao giờ khớp với trạng thái đã tick.
+        key_name = build_adherence_task_key(drug_name, hhmm, med)
         if st.session_state.adherence_logs.get(key_name, False):
             continue  # đã uống rồi, không cần cảnh báo
         if key_name in st.session_state.auto_escalated_keys:
@@ -734,7 +746,7 @@ def fetch_adherence_history(owner_phone: str, days: int = 30) -> list:
 
 
 ADHERENCE_HISTORY_MISSING_MSG = (
-    " Chưa thể lưu/hiển thị lịch sử tuân thủ vì cơ sở dữ liệu chưa có bảng "
+    "⚠️ Chưa thể lưu/hiển thị lịch sử tuân thủ vì cơ sở dữ liệu chưa có bảng "
     "'safepill_adherence_history'. Hãy chạy migration SQL (xem ghi chú tại phần khai báo "
     "ADHERENCE_HISTORY_TABLE trong code) rồi tải lại trang."
 )
@@ -870,7 +882,7 @@ def generate_lockscreen_wallpaper(qr_img, profile: dict, conflicts: list, size_k
 
     blood_type = profile.get("blood_type")
     if blood_type and blood_type != "Chưa rõ":
-        blood_text = f" Nhóm máu: {blood_type}"
+        blood_text = f"🩸 Nhóm máu: {blood_type}"
         bw = draw.textlength(blood_text, font=name_font)
         draw.text(((width - bw) / 2, y), blood_text, font=name_font, fill=accent_color)
         y += int(width * 0.045) + 14
@@ -881,7 +893,7 @@ def generate_lockscreen_wallpaper(qr_img, profile: dict, conflicts: list, size_k
     y += int(width * 0.036) + 14
 
     if conflicts:
-        warn_text = f" Có {len(conflicts)} cảnh báo tương tác thuốc — xem chi tiết khi quét mã"
+        warn_text = f"⚠️ Có {len(conflicts)} cảnh báo tương tác thuốc — xem chi tiết khi quét mã"
         ww = draw.textlength(warn_text, font=info_font)
         draw.text(((width - ww) / 2, y), warn_text, font=info_font, fill=accent_color)
         y += int(width * 0.036) + 14
@@ -969,10 +981,33 @@ DEFAULT_STATE = {
     "adherence_logged_today": False,
     # ---- Mới: tập hợp các task đã tự động cảnh báo người thân do quá 30 phút chưa uống ----
     "auto_escalated_keys": lambda: set(),
+    # ---- SỬA LỖI: ngày mà các trạng thái tuân thủ trong phiên (adherence_logs, missed_streak,
+    # qty_decremented, auto_escalated_keys) đang phản ánh. TRƯỚC ĐÂY các trạng thái này không
+    # bao giờ được làm mới theo ngày mới, nên "Đã uống hôm nay" của ngày hôm qua vẫn còn được
+    # tính là "đã uống" cho ngày hôm nay, khiến tỷ lệ tuân thủ/báo cáo bị sai lệch (luôn ~100%
+    # sau ngày đầu tiên sử dụng). Xem reset_daily_adherence_state_if_needed().
+    "adherence_log_date": None,
 }
 for key, default_val in DEFAULT_STATE.items():
     if key not in st.session_state:
         st.session_state[key] = default_val() if callable(default_val) else default_val
+
+
+def reset_daily_adherence_state_if_needed() -> None:
+    """
+    SỬA LỖI TUÂN THỦ THUỐC — Nếu sang ngày mới (so với lần cuối các trạng thái tuân thủ được
+    ghi nhận trong phiên), tự động làm mới các bộ đếm để "Đã uống hôm nay" phản ánh đúng NGÀY
+    HIỆN TẠI thay vì cộng dồn mãi mãi từ lần đăng nhập đầu tiên. Gọi hàm này ngay khi vào
+    Dashboard, trước khi tính toán mọi số liệu tuân thủ.
+    """
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if st.session_state.adherence_log_date != today_str:
+        st.session_state.adherence_logs = {}
+        st.session_state.missed_streak = {}
+        st.session_state.qty_decremented = {}
+        st.session_state.auto_escalated_keys = set()
+        st.session_state.adherence_logged_today = False
+        st.session_state.adherence_log_date = today_str
 
 
 def load_profile_into_session(user_row: dict):
@@ -1002,7 +1037,7 @@ def save_med_data_to_supabase() -> None:
             "diagnostic": json.dumps(st.session_state.med_data, ensure_ascii=False)
         }).eq("phone", st.session_state.user_phone).execute()
     except Exception as e:
-        st.warning(f" Không lưu được tủ thuốc lên máy chủ (dữ liệu chỉ tồn tại tạm trong phiên "
+        st.warning(f"⚠️ Không lưu được tủ thuốc lên máy chủ (dữ liệu chỉ tồn tại tạm trong phiên "
                    f"làm việc này): {e}")
 
 
@@ -1042,27 +1077,15 @@ def build_reminder_sound_script(sound_type: str, volume: float) -> str:
 # MÀN HÌNH 1: ONBOARDING
 # =====================================================================================
 if not st.session_state.onboarded:
-    st.markdown("<h1 style='text-align:center;color:#006a62;'> SafePill</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;color:#006a62;'>💊 SafePill</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;color:#555;'>Trợ lý dược phẩm thông minh — quét đơn thuốc, "
                 "phát hiện tương tác nguy hiểm, nhắc uống thuốc đúng giờ.</p>", unsafe_allow_html=True)
+    # SỬA LỖI GIAO DIỆN: bản gốc dựng 2 khối HTML card giới thiệu chồng lên nhau (1 khối <div> đơn
+    # giản dùng ảnh URL bị hỏng, và ngay sau đó là 1 tài liệu HTML đầy đủ <!DOCTYPE html>...</html>
+    # khác lặp lại gần như cùng nội dung). Khi render bằng st.html(), cả 2 khối bị nối chuỗi và hiển
+    # thị chồng chéo/lặp lại, gây rối giao diện màn hình onboarding. Nay chỉ giữ lại DUY NHẤT một
+    # khối "phone mockup" gọn gàng, dùng ảnh Unsplash hợp lệ.
     onboarding_html = """
-    <div style="
-    max-width: 380px; 
-    margin: 0 auto; 
-    padding: 16px; 
-    box-sizing: border-box; 
-    border: 2px solid #1e293b; 
-    border-radius: 24px; 
-    text-align: center;
-    background-color: #ffffff;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05)
-">
-    <img src="https://images.unsplash.com/photo-15..." style="width: 100%; height: 180px; object-fit: cover; border-radius: 16px; margin-bottom: 16px;">
-    <h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 8px;">Giải Pháp Số Hóa Y Tế</h2>
-    <p style="font-size: 0.875rem; color: #64748b; line-height: 1.5; margin: 0;">
-        Quét đơn thuốc bằng camera, tự động phát hiện tương tác thuốc nguy hiểm và nhắc bạn uống thuốc đúng giờ mỗi ngày.
-    </p>
-</div>
     <!DOCTYPE html><html><head><meta charset="utf-8">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -1095,9 +1118,9 @@ if not st.session_state.onboarded:
 elif not st.session_state.logged_in:
     c1, c2, c3 = st.columns([1, 1.6, 1])
     with c2:
-        st.markdown("<h2 style='text-align:center;color:#006a62;'> Đăng nhập / Đăng ký</h2>",
+        st.markdown("<h2 style='text-align:center;color:#006a62;'>🔐 Đăng nhập / Đăng ký</h2>",
                     unsafe_allow_html=True)
-        tab_login, tab_register = st.tabs([" Đăng nhập", " Đăng ký nhanh (5 chạm)"])
+        tab_login, tab_register = st.tabs(["🔑 Đăng nhập", "🆕 Đăng ký nhanh (5 chạm)"])
         # ---------------- ĐĂNG NHẬP (Mã PIN hoặc FaceID) ----------------
         with tab_login:
             method = st.radio("Mở khóa bằng:", ["Mã PIN 4 số", "Khuôn mặt (FaceID)"], horizontal=True)
@@ -1108,7 +1131,7 @@ elif not st.session_state.logged_in:
                     l_phone_clean = l_phone.replace(" ", "").strip()
                     l_pin_clean = l_pin.strip()
                     if not l_phone_clean or not l_pin_clean:
-                        st.warning(" Vui lòng nhập đầy đủ số điện thoại và mã PIN.")
+                        st.warning("⚠️ Vui lòng nhập đầy đủ số điện thoại và mã PIN.")
                     else:
                         with st.spinner("Đang xác thực..."):
                             try:
@@ -1117,29 +1140,29 @@ elif not st.session_state.logged_in:
                                     user_row = res.data[0]
                                     if verify_pin(l_pin_clean, user_row.get("pin")):
                                         load_profile_into_session(user_row)
-                                        st.success(" Đăng nhập thành công!")
+                                        st.success("✅ Đăng nhập thành công!")
                                         st.rerun()
                                     else:
-                                        st.error(" Mã PIN không chính xác.")
+                                        st.error("❌ Mã PIN không chính xác.")
                                 else:
-                                    st.error(" Số điện thoại chưa được đăng ký.")
+                                    st.error("❌ Số điện thoại chưa được đăng ký.")
                             except Exception as e:
                                 st.error(f"Lỗi kết nối cơ sở dữ liệu: {e}")
             else:  # FaceID
-                st.info(" Nhìn thẳng vào camera để đối chiếu khuôn mặt đã đăng ký.")
+                st.info("📷 Nhìn thẳng vào camera để đối chiếu khuôn mặt đã đăng ký.")
                 face_img = st.camera_input("Chụp ảnh xác thực", key="face_login")
                 if face_img:
-                    with st.spinner(" Đang đối chiếu dữ liệu sinh trắc học..."):
+                    with st.spinner("🔍 Đang đối chiếu dữ liệu sinh trắc học..."):
                         try:
                             login_hash = average_hash(face_img.getvalue())
                             if not login_hash:
-                                st.error(" Không xử lý được ảnh vừa chụp. Vui lòng thử lại với ảnh rõ nét hơn.")
+                                st.error("❌ Không xử lý được ảnh vừa chụp. Vui lòng thử lại với ảnh rõ nét hơn.")
                             else:
                                 try:
                                     res = supabase.table(TABLE).select("phone, full_name, pin, face_hash").execute()
                                 except Exception as col_err:
                                     st.error(
-                                        " Bảng dữ liệu chưa có cột lưu FaceID (face_data/face_hash). "
+                                        "⚠️ Bảng dữ liệu chưa có cột lưu FaceID (face_data/face_hash). "
                                         "Hãy chạy migration SQL để thêm cột trước khi dùng FaceID."
                                     )
                                     res = None
@@ -1154,7 +1177,7 @@ elif not st.session_state.logged_in:
                                     FACE_MATCH_THRESHOLD = 10
                                     if not candidates:
                                         st.warning(
-                                            " Chưa có tài khoản nào đăng ký FaceID. "
+                                            "⚠️ Chưa có tài khoản nào đăng ký FaceID. "
                                             "Hãy đăng nhập bằng mã PIN, sau đó bật FaceID trong phần đăng ký."
                                         )
                                     elif best_match and best_distance <= FACE_MATCH_THRESHOLD:
@@ -1164,13 +1187,13 @@ elif not st.session_state.logged_in:
                                         ).execute()
                                         if full_res.data:
                                             load_profile_into_session(full_res.data[0])
-                                            st.success(f" Xác thực FaceID thành công! Chào mừng "
+                                            st.success(f"✅ Xác thực FaceID thành công! Chào mừng "
                                                        f"{best_match.get('full_name', '')}.")
                                             st.rerun()
                                         else:
-                                            st.error(" Không thể tải hồ sơ người dùng, vui lòng thử lại.")
+                                            st.error("❌ Không thể tải hồ sơ người dùng, vui lòng thử lại.")
                                     else:
-                                        st.error(" Không tìm thấy khuôn mặt khớp trong hệ thống. "
+                                        st.error("❌ Không tìm thấy khuôn mặt khớp trong hệ thống. "
                                                  "Vui lòng đăng nhập bằng mã PIN hoặc đăng ký tài khoản mới.")
                         except Exception as e:
                             st.error(f"Lỗi xác thực FaceID: {e}")
@@ -1179,11 +1202,11 @@ elif not st.session_state.logged_in:
             st.caption("Điền đầy đủ 4 trường bắt buộc (số điện thoại, họ tên, mã PIN, nhóm máu) — "
                        "FaceID vẫn là tuỳ chọn, có thể bật ngay hoặc bổ sung sau.")
             with st.form("quick_register_form", clear_on_submit=False):
-                r_phone = st.text_input(" Số điện thoại", placeholder="09xxxxxxxx")
-                r_name = st.text_input(" Họ và tên", placeholder="Nguyễn Văn A")
+                r_phone = st.text_input("📱 Số điện thoại", placeholder="09xxxxxxxx")
+                r_name = st.text_input("👤 Họ và tên", placeholder="Nguyễn Văn A")
                 pin_col1, pin_col2 = st.columns([3, 1])
                 with pin_col1:
-                    r_pin = st.text_input(" Tạo mã PIN (4 số)", type="password", max_chars=4, placeholder="****")
+                    r_pin = st.text_input("🔢 Tạo mã PIN (4 số)", type="password", max_chars=4, placeholder="****")
                 with pin_col2:
                     show_pin = st.checkbox("Hiện", help="Hiện mã PIN để tự kiểm tra, "
                                             "không cần nhập lại lần 2 (rút gọn thao tác)")
@@ -1191,7 +1214,7 @@ elif not st.session_state.logged_in:
                     st.caption(f"Mã PIN vừa nhập: `{r_pin}`")
                 # ---- Mới: nhóm máu — BẮT BUỘC (không còn là tuỳ chọn) để hồ sơ khẩn cấp đầy đủ ----
                 r_blood_type = st.selectbox(
-                    " Nhóm máu (bắt buộc)", BLOOD_TYPE_OPTIONS,
+                    "🩸 Nhóm máu (bắt buộc)", BLOOD_TYPE_OPTIONS,
                     help="Bắt buộc chọn để hồ sơ khẩn cấp (mã QR, hình nền màn hình khoá) luôn có "
                          "đủ thông tin khi cần cấp cứu.",
                 )
@@ -1199,25 +1222,25 @@ elif not st.session_state.logged_in:
                 reg_face_img = None
                 if enable_face:
                     reg_face_img = st.camera_input("Chụp khuôn mặt", key="register_face_cam")
-                submit_reg = st.form_submit_button(" ĐĂNG KÝ", use_container_width=True, type="primary")
+                submit_reg = st.form_submit_button("✅ ĐĂNG KÝ", use_container_width=True, type="primary")
                 if submit_reg:
                     r_phone_clean, r_name_clean, r_pin_clean = r_phone.strip(), r_name.strip(), r_pin.strip()
                     if not r_phone_clean or not r_name_clean or not r_pin_clean:
-                        st.error(" Vui lòng điền đầy đủ số điện thoại, họ tên và mã PIN.")
+                        st.error("❌ Vui lòng điền đầy đủ số điện thoại, họ tên và mã PIN.")
                     elif not validate_phone(r_phone_clean):
-                        st.error(" Số điện thoại không hợp lệ (định dạng 10 số, bắt đầu bằng 0).")
+                        st.error("❌ Số điện thoại không hợp lệ (định dạng 10 số, bắt đầu bằng 0).")
                     elif len(r_pin_clean) != 4 or not r_pin_clean.isdigit():
-                        st.error(" Mã PIN phải gồm đúng 4 chữ số.")
+                        st.error("❌ Mã PIN phải gồm đúng 4 chữ số.")
                     # ---- Mới: bắt buộc chọn nhóm máu, không được để mặc định "Chưa rõ" ----
                     elif r_blood_type == "Chưa rõ":
-                        st.error(" Vui lòng chọn nhóm máu của bạn — đây là thông tin bắt buộc để hoàn "
+                        st.error("❌ Vui lòng chọn nhóm máu của bạn — đây là thông tin bắt buộc để hoàn "
                                  "tất đăng ký (phục vụ hồ sơ khẩn cấp).")
                     elif enable_face and reg_face_img is None:
-                        st.error(" Bạn đã bật FaceID nhưng chưa chụp ảnh. Vui lòng chụp ảnh hoặc bỏ chọn FaceID.")
+                        st.error("❌ Bạn đã bật FaceID nhưng chưa chụp ảnh. Vui lòng chụp ảnh hoặc bỏ chọn FaceID.")
                     # ---- Mới: chặn đăng ký nếu số điện thoại đã có tài khoản ----
                     elif phone_already_registered(r_phone_clean):
                         st.error(
-                            f" Số điện thoại '{r_phone_clean}' đã được đăng ký trước đó. "
+                            f"❌ Số điện thoại '{r_phone_clean}' đã được đăng ký trước đó. "
                             f"Mỗi số điện thoại chỉ được tạo 1 tài khoản — vui lòng chuyển sang tab "
                             f"**Đăng nhập** hoặc dùng số điện thoại khác."
                         )
@@ -1236,7 +1259,7 @@ elif not st.session_state.logged_in:
                                     face_hash = average_hash(face_bytes)
                                     if not face_hash:
                                         st.warning(
-                                            " Không xử lý được ảnh khuôn mặt, tài khoản sẽ được tạo "
+                                            "⚠️ Không xử lý được ảnh khuôn mặt, tài khoản sẽ được tạo "
                                             "không kèm FaceID. Bạn có thể thêm lại sau."
                                         )
                                     else:
@@ -1258,7 +1281,7 @@ elif not st.session_state.logged_in:
                                             new_row.pop(col, None)
                                         resp = supabase.table(TABLE).insert(new_row).execute()
                                         st.warning(
-                                            " Bảng dữ liệu chưa có đủ cột lưu FaceID/nhóm máu, nên tài khoản "
+                                            "⚠️ Bảng dữ liệu chưa có đủ cột lưu FaceID/nhóm máu, nên tài khoản "
                                             "được tạo với các thông tin còn lại. Hãy chạy migration SQL thêm "
                                             "cột face_data/face_hash/blood_type rồi cập nhật lại sau trong Cài đặt."
                                         )
@@ -1267,19 +1290,24 @@ elif not st.session_state.logged_in:
                                 if resp.data:
                                     load_profile_into_session(resp.data[0])
                                     st.session_state.med_data = []
-                                    st.success(" Tạo tài khoản thành công!")
+                                    st.success("✅ Tạo tài khoản thành công!")
                                     st.rerun()
                             except Exception as db_err:
                                 err_msg = str(db_err)
                                 if "duplicate key" in err_msg or "23505" in err_msg:
-                                    st.error(f" Số điện thoại '{r_phone_clean}' đã tồn tại. Vui lòng đăng nhập.")
+                                    st.error(f"❌ Số điện thoại '{r_phone_clean}' đã tồn tại. Vui lòng đăng nhập.")
                                 else:
-                                    st.error(f" Lỗi cơ sở dữ liệu: {db_err}")
+                                    st.error(f"❌ Lỗi cơ sở dữ liệu: {db_err}")
     st.caption(DISCLAIMER)
 # =====================================================================================
 # MÀN HÌNH 3: DASHBOARD CHÍNH
 # =====================================================================================
 else:
+    # SỬA LỖI TUÂN THỦ THUỐC: làm mới các bộ đếm tuân thủ (đã uống/bỏ lỡ/số lượng đã trừ/cảnh
+    # báo tự động) khi sang ngày mới, để "Đã uống hôm nay" và báo cáo luôn phản ánh đúng ngày
+    # hiện tại thay vì cộng dồn từ những ngày trước.
+    reset_daily_adherence_state_if_needed()
+
     detected_conflicts = scan_cabinet_for_conflicts(st.session_state.med_data)
     # ---- Mới: kiểm tra nhắc nhở do người thân gửi tới, đã đến hạn hiển thị ----
     due_family_reminders = fetch_due_family_reminders(st.session_state.user_phone)
@@ -1291,9 +1319,9 @@ else:
         st.caption(f"SĐT: `{st.session_state.user_phone}`")
         blood_display = st.session_state.current_profile.get("blood_type")
         if blood_display and blood_display != "Chưa rõ":
-            st.caption(f" Nhóm máu: **{blood_display}**")
+            st.caption(f"🩸 Nhóm máu: **{blood_display}**")
         st.divider()
-        st.subheader(" Tỷ lệ tuân thủ")
+        st.subheader("📊 Tỷ lệ tuân thủ")
         if st.session_state.med_data:
             total_tasks = len(st.session_state.med_data)
             done_tasks = sum(1 for v in st.session_state.adherence_logs.values() if v)
@@ -1304,12 +1332,12 @@ else:
             st.info("Chưa có lịch trình thuốc.")
         if pending_family_invites:
             st.divider()
-            st.warning(f" Bạn có {len(pending_family_invites)} lời mời làm người thân đang chờ "
+            st.warning(f"👪 Bạn có {len(pending_family_invites)} lời mời làm người thân đang chờ "
                        f"phê duyệt — xem ở tab **Cài đặt → Người thân**.")
         st.divider()
-        st.session_state.elderly_mode = st.toggle(" Giao diện chữ to (dễ đọc)",
+        st.session_state.elderly_mode = st.toggle("🔎 Giao diện chữ to (dễ đọc)",
                                                     value=st.session_state.elderly_mode)
-        if st.button(" Đăng xuất"):
+        if st.button("🚪 Đăng xuất"):
             for key, default_val in DEFAULT_STATE.items():
                 st.session_state[key] = default_val() if callable(default_val) else default_val
             st.session_state.onboarded = True
@@ -1322,63 +1350,63 @@ else:
             unsafe_allow_html=True,
         )
 
-    st.title(" SafePill – Trung Tâm Quản Lý Dược Phẩm")
+    st.title("💊 SafePill – Trung Tâm Quản Lý Dược Phẩm")
     st.caption(DISCLAIMER)
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Số thuốc đang quản lý", f"{len(st.session_state.med_data)}")
     if detected_conflicts:
-        m2.metric("Tương tác thuốc", " CÓ CẢNH BÁO", delta="Cần xem xét ngay", delta_color="inverse")
+        m2.metric("Tương tác thuốc", "🚨 CÓ CẢNH BÁO", delta="Cần xem xét ngay", delta_color="inverse")
     else:
-        m2.metric("Tương tác thuốc", " An toàn", delta="Không phát hiện xung đột")
+        m2.metric("Tương tác thuốc", "✅ An toàn", delta="Không phát hiện xung đột")
     med_data_valid = [m for m in st.session_state.med_data if m.get("Tên thuốc")]
     todays_reminders = len(med_data_valid)
     m3.metric("Lịch nhắc hôm nay", f"{todays_reminders} khung giờ")
 
     st.divider()
     tab_home, tab_ocr, tab_cabinet, tab_matrix, tab_expert, tab_report, tab_qr, tab_settings = st.tabs([
-        " Hôm nay",
-        " Quét đơn thuốc",
-        " Tủ thuốc số",
-        " Tra cứu tương tác",
-        " Hỏi đáp AI",
-        " Báo cáo tuân thủ",
-        " QR khẩn cấp",
-        " Cài đặt",
+        "🏠 Hôm nay",
+        "📷 Quét đơn thuốc",
+        "🗄️ Tủ thuốc số",
+        "🔬 Tra cứu tương tác",
+        "🤖 Hỏi đáp AI",
+        "📈 Báo cáo tuân thủ",
+        "🆘 QR khẩn cấp",
+        "⚙️ Cài đặt",
     ])
 
     # ---------------- TAB HÔM NAY: nhắc nhở theo giờ ----------------
     with tab_home:
-        st.header(" Lịch uống thuốc hôm nay")
+        st.header("🏠 Lịch uống thuốc hôm nay")
 
         # ===== MỚI: tự động cảnh báo người thân nếu quá 30 phút chưa uống thuốc =====
         auto_escalated_now = check_and_auto_escalate_overdue_doses(med_data_valid)
         if auto_escalated_now:
             for item in auto_escalated_now:
                 st.error(
-                    f" Đã quá {AUTO_ESCALATION_MINUTES} phút kể từ giờ hẹn **{item['time']}** mà "
+                    f"🚨 Đã quá {AUTO_ESCALATION_MINUTES} phút kể từ giờ hẹn **{item['time']}** mà "
                     f"**{item['drug']}** vẫn chưa được xác nhận uống — SafePill đã tự động báo cho "
                     f"{item['sent_to']} người thân đang theo dõi bạn."
                 )
 
         # ===== MỚI: Thêm / quản lý nhắc nhở thủ công (không cần gắn với thuốc) =====
-        with st.expander(" Thêm / quản lý nhắc nhở thủ công", expanded=False):
+        with st.expander("➕ Thêm / quản lý nhắc nhở thủ công", expanded=False):
             st.caption("Đặt nhắc nhở tuỳ ý (đo huyết áp, tái khám, uống nước...) không cần gắn với "
                        "một loại thuốc cụ thể trong tủ thuốc.")
             with st.form("add_custom_reminder_form", clear_on_submit=True):
                 rc1, rc2 = st.columns([3, 2])
                 custom_label = rc1.text_input("Nội dung nhắc nhở", placeholder="VD: Đo huyết áp")
                 custom_time = rc2.time_input("Giờ nhắc", value=dtime(8, 0))
-                submit_custom = st.form_submit_button(" Thêm nhắc nhở")
+                submit_custom = st.form_submit_button("➕ Thêm nhắc nhở")
                 if submit_custom:
                     if not custom_label.strip():
-                        st.warning(" Vui lòng nhập nội dung nhắc nhở.")
+                        st.warning("⚠️ Vui lòng nhập nội dung nhắc nhở.")
                     else:
                         st.session_state.custom_reminders.append({
                             "label": custom_label.strip(),
                             "time": custom_time.strftime("%H:%M"),
                         })
-                        st.success(" Đã thêm nhắc nhở thủ công.")
+                        st.success("✅ Đã thêm nhắc nhở thủ công.")
                         st.rerun()
 
             if st.session_state.custom_reminders:
@@ -1387,7 +1415,7 @@ else:
                     ccols = st.columns([1, 3, 1])
                     ccols[0].markdown(f"**{cr['time']}**")
                     ccols[1].markdown(cr["label"])
-                    if ccols[2].button(" ", key=f"del_custom_{cidx}"):
+                    if ccols[2].button("🗑️", key=f"del_custom_{cidx}"):
                         st.session_state.custom_reminders.pop(cidx)
                         st.rerun()
             else:
@@ -1421,7 +1449,9 @@ else:
                 )
                 for med in schedule:
                     hhmm = resolve_reminder_time(med.get("Thời điểm", ""))
-                    key_name = f"task_{med.get('Tên thuốc')}_{hhmm}_{id(med)}"
+                    # SỬA LỖI: dùng hàm dùng chung build_adherence_task_key() để key luôn khớp với
+                    # hàm tự động cảnh báo quá giờ (check_and_auto_escalate_overdue_doses).
+                    key_name = build_adherence_task_key(med.get("Tên thuốc"), hhmm, med)
                     taken = st.session_state.adherence_logs.get(key_name, False)
                     # Chỉ số thật của thuốc này trong med_data (để trừ số lượng còn lại đúng bản ghi)
                     real_idx = next((i for i, m in enumerate(st.session_state.med_data) if m is med), None)
@@ -1437,7 +1467,7 @@ else:
                     )
                     cols[2].markdown(f"_{med.get('Thời điểm', '')}_")
                     checked = cols[3].checkbox("Đã uống", value=taken, key=f"checked_{key_name}")
-                    missed_clicked = cols[4].button(" Bỏ lỡ", key=f"missed_{key_name}")
+                    missed_clicked = cols[4].button("❌ Bỏ lỡ", key=f"missed_{key_name}")
                     # ---- Mới: nút đọc to (Text-to-Speech), có thể tắt trong Cài đặt ----
                     if st.session_state.tts_enabled:
                         with cols[5]:
@@ -1465,7 +1495,7 @@ else:
                         info = INTERACTION_LOOKUP.get(drug_name.strip().capitalize())
                         severity = info.get("severity") if info else "Chưa xác định"
                         streak = record_missed_dose(drug_name, severity="Medium")
-                        st.warning(f" Đã ghi nhận bỏ lỡ liều **{drug_name}** ({streak} lần liên tiếp).")
+                        st.warning(f"⚠️ Đã ghi nhận bỏ lỡ liều **{drug_name}** ({streak} lần liên tiếp).")
                         if streak >= 2 and severity in ("Cao", "Nghiêm trọng"):
                             sent_to = send_escalation_alert_to_family(
                                 st.session_state.user_phone,
@@ -1473,7 +1503,7 @@ else:
                                 drug_name, streak,
                             )
                             if sent_to:
-                                st.error(f" Đã tự động cảnh báo {len(sent_to)} người thân vì bỏ lỡ "
+                                st.error(f"🚨 Đã tự động cảnh báo {len(sent_to)} người thân vì bỏ lỡ "
                                          f"thuốc mức độ **{severity}** liên tiếp {streak} lần!")
                         st.rerun()
                     # ---- Mới: cảnh báo sắp hết thuốc ----
@@ -1481,7 +1511,7 @@ else:
                     if qty_left is not None:
                         try:
                             if int(qty_left) <= LOW_STOCK_THRESHOLD:
-                                st.warning(f" **{med.get('Tên thuốc','')}** chỉ còn **{qty_left}** liều "
+                                st.warning(f"📉 **{med.get('Tên thuốc','')}** chỉ còn **{qty_left}** liều "
                                            f"— hãy chuẩn bị mua thêm hoặc tái khám sớm!")
                         except (TypeError, ValueError):
                             pass
@@ -1490,11 +1520,11 @@ else:
             if st.session_state.custom_reminders:
                 st.markdown("**Nhắc nhở thủ công hôm nay:**")
                 for cr in sorted(st.session_state.custom_reminders, key=lambda x: x["time"]):
-                    st.markdown(f"-  **{cr['time']}** — {cr['label']}")
+                    st.markdown(f"- ⏰ **{cr['time']}** — {cr['label']}")
                     reminder_payload.append({"name": cr["label"], "time": cr["time"]})
 
             st.divider()
-            st.caption(" Trình duyệt sẽ gửi thông báo kèm âm thanh nhắc nhở đúng giờ nếu bạn cho phép "
+            st.caption("🔔 Trình duyệt sẽ gửi thông báo kèm âm thanh nhắc nhở đúng giờ nếu bạn cho phép "
                        "Notification và giữ tab này đang mở.")
             reminder_json = json.dumps(reminder_payload, ensure_ascii=False)
             sound_type = st.session_state.reminder_sound
@@ -1515,7 +1545,7 @@ else:
                 meds.forEach(m => {{
                     if (m.time === hhmm) {{
                         if (window.Notification && Notification.permission === "granted") {{
-                            new Notification(" SafePill nhắc nhở", {{ body: m.name + " — đến giờ rồi!" }});
+                            new Notification("💊 SafePill nhắc nhở", {{ body: m.name + " — đến giờ rồi!" }});
                         }}
                         playReminderSound(soundType, soundVolume);
                     }}
@@ -1525,18 +1555,18 @@ else:
             </script>
             """, height=0)
             if detected_conflicts:
-                st.error(" Tủ thuốc hiện có cảnh báo tương tác — xem chi tiết ở tab **Tủ thuốc số**.")
+                st.error("⚠️ Tủ thuốc hiện có cảnh báo tương tác — xem chi tiết ở tab **Tủ thuốc số**.")
 
     # ---------------- TAB QUÉT ĐƠN THUỐC (Vision AI) ----------------
     with tab_ocr:
-        st.header(" Số hóa đơn thuốc bằng AI")
+        st.header("📷 Số hóa đơn thuốc bằng AI")
         st.info("Chụp ảnh đơn thuốc viết tay hoặc vỉ thuốc, hệ thống sẽ tự động bóc tách tên thuốc, "
                  "liều lượng và thời điểm uống.")
 
         # ===== MỚI: Thông tin nơi khám / bác sĩ / nơi cấp thuốc — LUÔN HIỂN THỊ, áp dụng cho
         # CẢ quét AI lẫn nhập tay. Điền 1 lần ở đây, hệ thống sẽ tự gắn vào mọi thuốc được thêm
         # vào tủ thuốc trong lượt này (quét ảnh hoặc thêm thủ công), không cần gõ lại từng thuốc. =====
-        st.markdown("###  Thông tin nơi khám & cấp thuốc")
+        st.markdown("### 🏥 Thông tin nơi khám & cấp thuốc")
         st.caption("Điền thông tin của đơn thuốc này — sẽ tự động áp dụng cho mọi thuốc bạn quét "
                    "bằng AI hoặc thêm thủ công bên dưới. Có thể để trống nếu không có.")
         rx_col1, rx_col2, rx_col3 = st.columns(3)
@@ -1561,7 +1591,7 @@ else:
         if has_prescription.startswith("Có"):
             img_file = st.camera_input("Chụp ảnh đơn thuốc / vỉ thuốc", key="clinical_vision_cam")
             if img_file:
-                with st.spinner(" Đang phân tích hình ảnh bằng AI..."):
+                with st.spinner("🤖 Đang phân tích hình ảnh bằng AI..."):
                     try:
                         bytes_data = img_file.getvalue()
                         pil_img = Image.open(io.BytesIO(bytes_data))
@@ -1606,21 +1636,21 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
                                 pm["Nơi cấp thuốc"] = rx_pharmacy.strip()
                         st.session_state.med_data.extend(parsed_meds)
                         save_med_data_to_supabase()
-                        st.success(f" Đã thêm {len(parsed_meds)} loại thuốc vào tủ thuốc!")
+                        st.success(f"✅ Đã thêm {len(parsed_meds)} loại thuốc vào tủ thuốc!")
                         st.rerun()
                     except Exception as ex:
-                        st.error(f" Không thể phân tích ảnh: {ex}")
+                        st.error(f"❌ Không thể phân tích ảnh: {ex}")
                         st.caption("Gợi ý: chụp ảnh rõ nét hơn, đủ sáng, hoặc chọn "
                                    "\"Không có, tôi sẽ nhập thuốc thủ công\" ở trên để nhập tay.")
             manual_expanded = False
-            manual_title = " Thêm thuốc thủ công (nếu AI không nhận diện được, hoặc muốn bổ sung thêm)"
+            manual_title = "➕ Thêm thuốc thủ công (nếu AI không nhận diện được, hoặc muốn bổ sung thêm)"
         else:
             st.success(
-                " Không sao cả! Bạn có thể bỏ qua bước chụp ảnh và nhập trực tiếp thông tin thuốc "
+                "👍 Không sao cả! Bạn có thể bỏ qua bước chụp ảnh và nhập trực tiếp thông tin thuốc "
                 "ở khung bên dưới — vẫn đầy đủ tính năng nhắc nhở, cảnh báo tương tác như khi quét đơn."
             )
             manual_expanded = True
-            manual_title = " Nhập thuốc thủ công"
+            manual_title = "✍️ Nhập thuốc thủ công"
 
         with st.expander(manual_title, expanded=manual_expanded):
             with st.form("manual_add_form", clear_on_submit=True):
@@ -1662,26 +1692,26 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
                             new_med_entry["Số lượng còn lại"] = int(man_qty)
                         st.session_state.med_data.append(new_med_entry)
                         save_med_data_to_supabase()
-                        st.success(" Đã thêm thuốc.")
+                        st.success("✅ Đã thêm thuốc.")
                         st.rerun()
                     else:
                         st.warning("Vui lòng nhập tên thuốc.")
 
     # ---------------- TAB TỦ THUỐC SỐ ----------------
     with tab_cabinet:
-        st.header(" Tủ thuốc số & nhật ký tuân thủ")
+        st.header("🗄️ Tủ thuốc số & nhật ký tuân thủ")
         if detected_conflicts:
-            st.error(" **CẢNH BÁO:** Phát hiện tương tác thuốc trong tủ thuốc hiện tại!")
+            st.error("🚨 **CẢNH BÁO:** Phát hiện tương tác thuốc trong tủ thuốc hiện tại!")
             for c in detected_conflicts:
                 st.markdown(f"> **{c['thuoc_1']}** ↔ **{c['thuoc_2']}** \n"
                             f"> Mức độ: **{c['severity']}** — {c['effect']}  \n"
                             f"> _Nguồn tham khảo: {c.get('nguon', DEFAULT_SOURCE_NOTE)}_")
-            st.warning(" Vui lòng tham khảo ý kiến bác sĩ/dược sĩ trước khi tiếp tục phối hợp các thuốc trên.")
+            st.warning("⚠️ Vui lòng tham khảo ý kiến bác sĩ/dược sĩ trước khi tiếp tục phối hợp các thuốc trên.")
 
         # ===== MỚI: Cảnh báo tương tác thuốc – thực phẩm/thảo dược kiểu Việt Nam =====
         food_herb_warnings = check_food_herb_conflicts(st.session_state.med_data)
         if food_herb_warnings:
-            st.warning(" **Cảnh báo tương tác với thực phẩm/thảo dược phổ biến ở Việt Nam:**")
+            st.warning("🍽️ **Cảnh báo tương tác với thực phẩm/thảo dược phổ biến ở Việt Nam:**")
             for w in food_herb_warnings:
                 st.markdown(f"> **{w['thuoc']}** ↔ *{w['item']}* — Mức độ: **{w['severity']}**  \n"
                             f"> {w['effect']}  \n"
@@ -1691,7 +1721,7 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
         if not med_data_valid:
             st.info("Tủ thuốc trống. Hãy quét đơn thuốc hoặc thêm thuốc thủ công ở tab trước.")
         else:
-            st.subheader(" Danh mục thuốc hiện có")
+            st.subheader("📋 Danh mục thuốc hiện có")
             for idx, med in enumerate(list(st.session_state.med_data)):
                 cols = st.columns([0.6, 2.4, 2, 2, 1.6, 1.4, 1])
                 cols[0].markdown(render_pill_icon_html(med.get("Màu sắc", ""), med.get("Hình dạng", "")),
@@ -1703,7 +1733,7 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
                 qty_left = med.get("Số lượng còn lại")
                 qty_display = f"{qty_left} liều" if qty_left is not None else "—"
                 cols[5].markdown(qty_display)
-                if cols[6].button(" ", key=f"del_{idx}"):
+                if cols[6].button("🗑️", key=f"del_{idx}"):
                     st.session_state.med_data.pop(idx)
                     save_med_data_to_supabase()
                     st.rerun()
@@ -1714,16 +1744,16 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
                 if clinic or doctor or pharmacy:
                     detail_bits = []
                     if clinic:
-                        detail_bits.append(f" Nơi khám: {clinic}")
+                        detail_bits.append(f"🏥 Nơi khám: {clinic}")
                     if doctor:
-                        detail_bits.append(f" BS điều trị: {doctor}")
+                        detail_bits.append(f"👨‍⚕️ BS điều trị: {doctor}")
                     if pharmacy:
-                        detail_bits.append(f" Nơi cấp thuốc: {pharmacy}")
+                        detail_bits.append(f"💊 Nơi cấp thuốc: {pharmacy}")
                     st.caption(" | ".join(detail_bits))
 
     # ---------------- TAB TRA CỨU TƯƠNG TÁC ----------------
     with tab_matrix:
-        st.header(" Tra cứu & mô phỏng tương tác thuốc")
+        st.header("🔬 Tra cứu & mô phỏng tương tác thuốc")
         st.caption("Kiểm tra nhanh 2 loại thuốc, hoặc 1 thuốc với thực phẩm/thảo dược (VD: rượu bia, "
                    "bưởi, thuốc nam...), trước khi phối hợp sử dụng.")
         col_t1, col_t2 = st.columns(2)
@@ -1737,7 +1767,7 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
             food_results = check_food_herb_pair(t1, t2)
 
             if drug_result:
-                st.error(f" PHÁT HIỆN TƯƠNG TÁC THUỐC–THUỐC (Mức độ: {drug_result['severity']})")
+                st.error(f"🚨 PHÁT HIỆN TƯƠNG TÁC THUỐC–THUỐC (Mức độ: {drug_result['severity']})")
                 st.markdown(f"- **Cặp thuốc:** `{drug_result['thuoc_1']}` và `{drug_result['thuoc_2']}`\n"
                             f"- **Hệ quả:** {drug_result['effect']}\n"
                             f"- **Nguồn tham khảo:** {drug_result.get('nguon', DEFAULT_SOURCE_NOTE)}\n"
@@ -1745,14 +1775,14 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
 
             if food_results:
                 for fr in food_results:
-                    st.warning(f" PHÁT HIỆN TƯƠNG TÁC THUỐC–THỰC PHẨM/THẢO DƯỢC (Mức độ: {fr['severity']})")
+                    st.warning(f"⚠️ PHÁT HIỆN TƯƠNG TÁC THUỐC–THỰC PHẨM/THẢO DƯỢC (Mức độ: {fr['severity']})")
                     st.markdown(f"- **{fr['thuoc']}** ↔ *{fr['item']}*\n"
                                 f"- **Hệ quả:** {fr['effect']}\n"
                                 f"- **Nguồn tham khảo:** {fr.get('nguon', DEFAULT_SOURCE_NOTE)}\n"
                                 f"- **Khuyến cáo:** Tránh phối hợp, hỏi ý kiến bác sĩ/dược sĩ nếu cần dùng chung.")
 
             if not drug_result and not food_results:
-                st.success(f" Chưa ghi nhận tương tác giữa `{t1.strip().capitalize()}` và "
+                st.success(f"✅ Chưa ghi nhận tương tác giữa `{t1.strip().capitalize()}` và "
                            f"`{t2.strip().capitalize()}` trong cơ sở dữ liệu hiện tại "
                            f"(đã kiểm tra cả thuốc–thuốc và thuốc–thực phẩm/thảo dược).")
         st.caption("Lưu ý: cơ sở dữ liệu minh họa chỉ bao gồm một số hoạt chất và thực phẩm/thảo dược "
@@ -1760,10 +1790,10 @@ lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn
 
     # ---------------- TAB HỎI ĐÁP AI ----------------
     with tab_expert:
-        st.header(" Trợ lý hỏi đáp về thuốc & sức khỏe")
+        st.header("🤖 Trợ lý hỏi đáp về thuốc & sức khỏe")
         st.caption(DISCLAIMER)
         st.caption(
-            " Trợ lý được yêu cầu ưu tiên đối chiếu các nguồn uy tín (Drugs.com, Dược thư Quốc gia "
+            "🔎 Trợ lý được yêu cầu ưu tiên đối chiếu các nguồn uy tín (Drugs.com, Dược thư Quốc gia "
             "Việt Nam, MedlinePlus, các bệnh viện lớn...) và đính kèm liên kết nguồn ở cuối câu trả lời "
             "khi tìm được, giúp bạn tự kiểm chứng lại thông tin."
         )
@@ -1843,7 +1873,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
 
     # ---------------- MỚI: TAB BÁO CÁO TUÂN THỦ (biểu đồ theo thời gian + xuất PDF/ảnh) ----------------
     with tab_report:
-        st.header(" Báo cáo tuân thủ điều trị")
+        st.header("📈 Báo cáo tuân thủ điều trị")
         st.caption("Theo dõi tỷ lệ tuân thủ theo ngày và xuất báo cáo để mang đi khám bệnh.")
 
         total_tasks_today = len(med_data_valid)
@@ -1852,26 +1882,26 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
         rc1, rc2 = st.columns([2, 1])
         rc1.metric("Tỷ lệ tuân thủ hôm nay",
                     f"{int((done_tasks_today/total_tasks_today)*100) if total_tasks_today else 0}%")
-        if rc2.button(" Lưu tuân thủ hôm nay vào lịch sử", use_container_width=True):
+        if rc2.button("💾 Lưu tuân thủ hôm nay vào lịch sử", use_container_width=True):
             if total_tasks_today == 0:
-                st.warning(" Chưa có lịch thuốc hôm nay để lưu.")
+                st.warning("⚠️ Chưa có lịch thuốc hôm nay để lưu.")
             else:
                 ok, err = log_adherence_snapshot(st.session_state.user_phone, total_tasks_today, done_tasks_today)
                 if ok:
                     st.session_state.adherence_logged_today = True
-                    st.success(" Đã lưu snapshot tuân thủ hôm nay.")
+                    st.success("✅ Đã lưu snapshot tuân thủ hôm nay.")
                 else:
                     st.error(ADHERENCE_HISTORY_MISSING_MSG if "relation" in str(err).lower()
                               or "does not exist" in str(err).lower() else f"Lỗi: {err}")
 
         st.divider()
-        st.subheader(" Biểu đồ tuân thủ theo thời gian")
+        st.subheader("📉 Biểu đồ tuân thủ theo thời gian")
         history_rows = fetch_adherence_history(st.session_state.user_phone, days=30)
         if not history_rows:
-            st.info(" Chưa có dữ liệu lịch sử. Hãy bấm nút 'Lưu tuân thủ hôm nay vào lịch sử' mỗi ngày "
+            st.info("ℹ️ Chưa có dữ liệu lịch sử. Hãy bấm nút 'Lưu tuân thủ hôm nay vào lịch sử' mỗi ngày "
                     "để bắt đầu tích luỹ dữ liệu cho biểu đồ.")
         elif not MATPLOTLIB_AVAILABLE:
-            st.warning(" Thư viện matplotlib chưa được cài đặt trên máy chủ. Hãy thêm 'matplotlib' vào "
+            st.warning("⚠️ Thư viện matplotlib chưa được cài đặt trên máy chủ. Hãy thêm 'matplotlib' vào "
                        "requirements.txt để hiển thị biểu đồ.")
             st.table(history_rows)
         else:
@@ -1896,20 +1926,20 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
             fig.savefig(png_buffer, format="png", dpi=150)
             png_buffer.seek(0)
             dl1, dl2 = st.columns(2)
-            dl1.download_button(" Tải báo cáo PDF", data=pdf_buffer,
+            dl1.download_button("📄 Tải báo cáo PDF", data=pdf_buffer,
                                   file_name=f"bao_cao_tuan_thu_{st.session_state.user_phone}.pdf",
                                   mime="application/pdf", use_container_width=True)
-            dl2.download_button(" Tải ảnh PNG", data=png_buffer,
+            dl2.download_button("🖼️ Tải ảnh PNG", data=png_buffer,
                                   file_name=f"bao_cao_tuan_thu_{st.session_state.user_phone}.png",
                                   mime="image/png", use_container_width=True)
             plt.close(fig)
-            st.caption(" Mang file PDF/ảnh này đi khám để bác sĩ nắm được mức độ tuân thủ điều trị của bạn.")
+            st.caption("💡 Mang file PDF/ảnh này đi khám để bác sĩ nắm được mức độ tuân thủ điều trị của bạn.")
 
     # ---------------- MỚI: TAB THẺ QR KHẨN CẤP ----------------
     with tab_qr:
-        st.header(" Thẻ QR khẩn cấp")
+        st.header("🆘 Thẻ QR khẩn cấp")
         st.info(
-            " Mã QR này chứa danh sách thuốc đang dùng, cảnh báo tương tác và số điện thoại người thân. "
+            "ℹ️ Mã QR này chứa danh sách thuốc đang dùng, cảnh báo tương tác và số điện thoại người thân. "
             "In và dán lên ví hoặc tủ thuốc — khi gặp cấp cứu, người xung quanh hoặc nhân viên y tế chỉ "
             "cần quét mã là biết ngay bạn đang dùng thuốc gì."
         )
@@ -1919,7 +1949,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
             detected_conflicts, family_members_for_qr,
         )
         if not QRCODE_AVAILABLE:
-            st.warning(" Thư viện 'qrcode' chưa được cài đặt trên máy chủ. Hãy thêm 'qrcode[pil]' vào "
+            st.warning("⚠️ Thư viện 'qrcode' chưa được cài đặt trên máy chủ. Hãy thêm 'qrcode[pil]' vào "
                        "requirements.txt để bật tính năng này.")
         else:
             qr_img = generate_qr_image(qr_text)
@@ -1929,7 +1959,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 qr_buf = io.BytesIO()
                 qr_img.save(qr_buf, format="PNG")
                 qr_buf.seek(0)
-                st.download_button(" Tải mã QR (PNG)", data=qr_buf,
+                st.download_button("⬇️ Tải mã QR (PNG)", data=qr_buf,
                                      file_name=f"safepill_qr_khan_cap_{st.session_state.user_phone}.png",
                                      mime="image/png", use_container_width=True)
             with qcol2:
@@ -1937,9 +1967,9 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 st.code(qr_text, language=None)
 
             st.divider()
-            st.subheader(" Đặt làm hình nền màn hình khoá")
+            st.subheader("🔒 Đặt làm hình nền màn hình khoá")
             st.info(
-                " Rất khuyến khích: đặt ảnh này làm **hình nền màn hình khoá (Lock Screen)** của điện "
+                "💡 Rất khuyến khích: đặt ảnh này làm **hình nền màn hình khoá (Lock Screen)** của điện "
                 "thoại. Nhờ vậy, khi máy đang khoá và bạn không tỉnh táo để mở khoá, người sơ cứu hoặc "
                 "nhân viên y tế vẫn nhìn thấy và quét được mã QR ngay trên màn hình khoá mà **không cần "
                 "mật khẩu**."
@@ -1955,7 +1985,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 wallpaper_img.save(wallpaper_buf, format="PNG")
                 wallpaper_buf.seek(0)
                 st.download_button(
-                    " Tải hình nền màn hình khoá", data=wallpaper_buf,
+                    "⬇️ Tải hình nền màn hình khoá", data=wallpaper_buf,
                     file_name=f"safepill_lockscreen_{st.session_state.user_phone}.png",
                     mime="image/png", use_container_width=True, type="primary",
                 )
@@ -1966,19 +1996,19 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     "*Dùng làm hình nền* → chọn **Màn hình khoá** (Lock Screen) → Xong.\n"
                     "- **Android:** Tải ảnh → mở ảnh trong *Thư viện* → chạm menu ⋮ → *Đặt làm hình nền* → "
                     "chọn **Màn hình khoá**.\n\n"
-                    " Lưu ý: một số dòng máy có Face ID/vân tay hoặc widget đồng hồ có thể che một phần "
+                    "⚠️ Lưu ý: một số dòng máy có Face ID/vân tay hoặc widget đồng hồ có thể che một phần "
                     "hình — hãy tự kiểm tra lại màn hình khoá sau khi đặt để đảm bảo mã QR không bị che."
                 )
         st.caption(
-            " Lưu ý: mã QR chỉ chứa thông tin bạn tự khai báo trong SafePill, không thay thế hồ sơ bệnh án "
+            "ℹ️ Lưu ý: mã QR chỉ chứa thông tin bạn tự khai báo trong SafePill, không thay thế hồ sơ bệnh án "
             "chính thức. Hãy cập nhật lại mã mỗi khi thay đổi thuốc."
         )
 
     # ---------------- TAB CÀI ĐẶT ----------------
     with tab_settings:
-        st.header(" Cài đặt")
+        st.header("⚙️ Cài đặt")
         sub_account, sub_schedule, sub_notification, sub_family = st.tabs([
-            " Tài khoản", " Lịch uống thuốc", " Thông báo & Âm thanh", " Người thân",
+            "👤 Tài khoản", "⏰ Lịch uống thuốc", "🔔 Thông báo & Âm thanh", "👪 Người thân",
         ])
 
         # ===== TÀI KHOẢN =====
@@ -1992,14 +2022,14 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 # ---- Mới: chỉnh sửa/bổ sung nhóm máu, hữu ích cho tình huống cấp cứu ----
                 current_blood = st.session_state.current_profile.get("blood_type") or "Chưa rõ"
                 new_blood_type = st.selectbox(
-                    " Nhóm máu",
+                    "🩸 Nhóm máu",
                     BLOOD_TYPE_OPTIONS,
                     index=BLOOD_TYPE_OPTIONS.index(current_blood) if current_blood in BLOOD_TYPE_OPTIONS else 0,
                 )
                 submit_name = st.form_submit_button("Lưu thông tin")
                 if submit_name:
                     if not new_name.strip():
-                        st.error(" Họ và tên không được để trống.")
+                        st.error("❌ Họ và tên không được để trống.")
                     else:
                         try:
                             try:
@@ -2013,14 +2043,14 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                                         "phone", st.session_state.user_phone
                                     ).execute()
                                     st.warning(
-                                        " Bảng dữ liệu chưa có cột 'blood_type'. Hãy chạy migration SQL "
+                                        "⚠️ Bảng dữ liệu chưa có cột 'blood_type'. Hãy chạy migration SQL "
                                         "thêm cột này để lưu nhóm máu."
                                     )
                                 else:
                                     raise
                             st.session_state.current_profile["full_name"] = new_name.strip()
                             st.session_state.current_profile["blood_type"] = new_blood_type
-                            st.success(" Đã cập nhật thông tin cá nhân.")
+                            st.success("✅ Đã cập nhật thông tin cá nhân.")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Lỗi cập nhật: {e}")
@@ -2037,13 +2067,13 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     new_pin_clean = new_pin.strip()
                     confirm_pin_clean = confirm_pin.strip()
                     if not old_pin_clean or not new_pin_clean or not confirm_pin_clean:
-                        st.error(" Vui lòng điền đầy đủ cả 3 trường.")
+                        st.error("❌ Vui lòng điền đầy đủ cả 3 trường.")
                     elif not verify_pin(old_pin_clean, st.session_state.current_profile.get("pin")):
-                        st.error(" Mã PIN hiện tại không đúng.")
+                        st.error("❌ Mã PIN hiện tại không đúng.")
                     elif len(new_pin_clean) != 4 or not new_pin_clean.isdigit():
-                        st.error(" Mã PIN mới phải gồm đúng 4 chữ số.")
+                        st.error("❌ Mã PIN mới phải gồm đúng 4 chữ số.")
                     elif new_pin_clean != confirm_pin_clean:
-                        st.error(" Xác nhận mã PIN mới không khớp.")
+                        st.error("❌ Xác nhận mã PIN mới không khớp.")
                     else:
                         try:
                             new_hash = hash_pin(new_pin_clean)
@@ -2051,7 +2081,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                                 "phone", st.session_state.user_phone
                             ).execute()
                             st.session_state.current_profile["pin"] = new_hash
-                            st.success(" Đã đổi mã PIN thành công.")
+                            st.success("✅ Đã đổi mã PIN thành công.")
                         except Exception as e:
                             st.error(f"Lỗi cập nhật: {e}")
 
@@ -2059,38 +2089,38 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
             st.subheader("FaceID")
             has_face = bool(st.session_state.current_profile.get("face_hash"))
             if has_face:
-                st.success(" Tài khoản đã đăng ký FaceID.")
+                st.success("✅ Tài khoản đã đăng ký FaceID.")
             else:
-                st.info(" Tài khoản chưa đăng ký FaceID.")
-            with st.expander(" Chụp lại / đăng ký FaceID mới"):
+                st.info("ℹ️ Tài khoản chưa đăng ký FaceID.")
+            with st.expander("📷 Chụp lại / đăng ký FaceID mới"):
                 new_face_img = st.camera_input("Chụp khuôn mặt", key="settings_face_cam")
                 if new_face_img is not None and st.button("Lưu FaceID", key="save_face_btn"):
                     try:
                         face_bytes = new_face_img.getvalue()
                         new_face_hash = average_hash(face_bytes)
                         if not new_face_hash:
-                            st.error(" Không xử lý được ảnh, vui lòng thử lại.")
+                            st.error("❌ Không xử lý được ảnh, vui lòng thử lại.")
                         else:
                             supabase.table(TABLE).update({
                                 "face_data": base64.b64encode(face_bytes).decode("utf-8"),
                                 "face_hash": new_face_hash,
                             }).eq("phone", st.session_state.user_phone).execute()
                             st.session_state.current_profile["face_hash"] = new_face_hash
-                            st.success(" Đã lưu FaceID mới.")
+                            st.success("✅ Đã lưu FaceID mới.")
                             st.rerun()
                     except Exception as e:
                         st.error(
-                            f" Không thể lưu FaceID (kiểm tra đã chạy migration thêm cột face_data/face_hash "
+                            f"❌ Không thể lưu FaceID (kiểm tra đã chạy migration thêm cột face_data/face_hash "
                             f"chưa): {e}"
                         )
             if has_face:
-                if st.button(" Xoá FaceID", key="remove_face_btn"):
+                if st.button("🗑️ Xoá FaceID", key="remove_face_btn"):
                     try:
                         supabase.table(TABLE).update({"face_data": None, "face_hash": None}).eq(
                             "phone", st.session_state.user_phone
                         ).execute()
                         st.session_state.current_profile["face_hash"] = None
-                        st.success(" Đã xoá FaceID khỏi tài khoản.")
+                        st.success("✅ Đã xoá FaceID khỏi tài khoản.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi xoá FaceID: {e}")
@@ -2103,7 +2133,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
             else:
                 for idx, med in enumerate(list(st.session_state.med_data)):
                     med_label = med.get("Tên thuốc") or f"Thuốc #{idx + 1}"
-                    with st.expander(f" {med_label}"):
+                    with st.expander(f"💊 {med_label}"):
                         col1, col2 = st.columns(2)
                         new_dose = col1.text_input(
                             "Liều lượng", value=med.get("Liều lượng", ""), key=f"sched_dose_{idx}"
@@ -2151,10 +2181,10 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                             st.session_state.med_data[idx]["Bác sĩ điều trị"] = new_doctor
                             st.session_state.med_data[idx]["Nơi cấp thuốc"] = new_pharmacy
                             save_med_data_to_supabase()
-                            st.success(f" Đã cập nhật lịch nhắc cho {med_label}.")
+                            st.success(f"✅ Đã cập nhật lịch nhắc cho {med_label}.")
                             st.rerun()
                 st.caption(
-                    " Lịch nhắc & thông tin nơi khám/bác sĩ/nơi cấp thuốc được lưu bền lên Supabase "
+                    "💡 Lịch nhắc & thông tin nơi khám/bác sĩ/nơi cấp thuốc được lưu bền lên Supabase "
                     "(cột 'diagnostic'), sẽ không mất khi tải lại trang hoặc đăng nhập lại."
                 )
 
@@ -2166,7 +2196,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 "giờ nhắc uống thuốc hoặc nhắc nhở thủ công. Cần cho phép quyền Notification và giữ "
                 "tab SafePill đang mở (hoặc chạy nền) để nhận được nhắc nhở."
             )
-            sound_options = {"beep": " Beep (mặc định)", "chime": " Chime (chuông nhẹ)", "bell": " Bell (chuông lớn)"}
+            sound_options = {"beep": "🔔 Beep (mặc định)", "chime": "🎐 Chime (chuông nhẹ)", "bell": "🔔 Bell (chuông lớn)"}
             sound_keys = list(sound_options.keys())
             selected_sound = st.selectbox(
                 "Loại âm thanh nhắc nhở",
@@ -2182,7 +2212,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     or selected_volume != st.session_state.reminder_volume):
                 st.session_state.reminder_sound = selected_sound
                 st.session_state.reminder_volume = selected_volume
-                st.success(" Đã lưu cài đặt âm thanh nhắc nhở.")
+                st.success("✅ Đã lưu cài đặt âm thanh nhắc nhở.")
 
             st.markdown("**Nghe thử âm thanh:**")
             test_sound_js = build_reminder_sound_script(selected_sound, selected_volume)
@@ -2198,24 +2228,24 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
             """, height=60)
 
             st.caption(
-                " Mẹo: trên điện thoại, hãy thêm SafePill vào màn hình chính (Add to Home Screen) và "
+                "💡 Mẹo: trên điện thoại, hãy thêm SafePill vào màn hình chính (Add to Home Screen) và "
                 "cho phép quyền Thông báo trong trình duyệt để nhận nhắc nhở ổn định hơn."
             )
 
             st.divider()
-            st.subheader(" Đọc to bằng giọng nói (Text-to-Speech)")
+            st.subheader("🔊 Đọc to bằng giọng nói (Text-to-Speech)")
             st.session_state.tts_enabled = st.toggle(
                 "Hiện nút 🔊 đọc to tên thuốc/liều lượng ở tab Hôm nay",
                 value=st.session_state.tts_enabled,
             )
             st.caption(
-                " Dành cho người già không quen thao tác chữ nhỏ: bấm nút 🔊 cạnh mỗi thuốc để nghe "
+                "👴 Dành cho người già không quen thao tác chữ nhỏ: bấm nút 🔊 cạnh mỗi thuốc để nghe "
                 "đọc to tên thuốc, liều lượng và thời điểm uống bằng giọng tiếng Việt của trình duyệt."
             )
 
         # ===== MỚI: NGƯỜI THÂN =====
         with sub_family:
-            st.subheader(" Người thân nhắc nhở tôi")
+            st.subheader("👪 Người thân nhắc nhở tôi")
             st.caption(
                 "Mời một người thân (đã có tài khoản SafePill) để họ có thể gửi nhắc nhở trực tiếp "
                 "đến bạn — ví dụ: \"Con nhắc mẹ uống thuốc huyết áp nhé!\". Người thân cần đăng nhập "
@@ -2225,19 +2255,19 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 fcol1, fcol2 = st.columns(2)
                 invite_phone = fcol1.text_input("SĐT người thân", placeholder="09xxxxxxxx")
                 invite_name = fcol2.text_input("Tên gợi nhớ (tuỳ chọn)", placeholder="VD: Con trai")
-                submit_invite = st.form_submit_button(" Gửi lời mời")
+                submit_invite = st.form_submit_button("📨 Gửi lời mời")
                 if submit_invite:
                     invite_phone_clean = invite_phone.strip()
                     if not validate_phone(invite_phone_clean):
-                        st.error(" Số điện thoại không hợp lệ.")
+                        st.error("❌ Số điện thoại không hợp lệ.")
                     elif invite_phone_clean == st.session_state.user_phone:
-                        st.error(" Không thể tự mời chính mình.")
+                        st.error("❌ Không thể tự mời chính mình.")
                     else:
                         ok, err = create_family_invite(
                             st.session_state.user_phone, invite_phone_clean, invite_name
                         )
                         if ok:
-                            st.success(f" Đã gửi lời mời đến {invite_phone_clean}.")
+                            st.success(f"✅ Đã gửi lời mời đến {invite_phone_clean}.")
                             st.rerun()
                         else:
                             st.error(FAMILY_TABLE_MISSING_MSG if "relation" in str(err).lower()
@@ -2246,36 +2276,36 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
             my_family_members = fetch_family_members(st.session_state.user_phone)
             if my_family_members:
                 st.markdown("**Danh sách người thân:**")
-                status_label = {"pending": " Đang chờ", "accepted": " Đã chấp nhận", "declined": " Đã từ chối"}
+                status_label = {"pending": "⏳ Đang chờ", "accepted": "✅ Đã chấp nhận", "declined": "❌ Đã từ chối"}
                 for link in my_family_members:
                     lcols = st.columns([3, 2, 2, 1])
                     lcols[0].markdown(f"**{link.get('member_name') or link.get('member_phone')}**")
                     lcols[1].markdown(link.get("member_phone", ""))
                     lcols[2].markdown(status_label.get(link.get("status"), link.get("status", "")))
-                    if lcols[3].button(" ", key=f"del_link_{link.get('id')}"):
+                    if lcols[3].button("🗑️", key=f"del_link_{link.get('id')}"):
                         delete_family_link(link.get("id"))
                         st.rerun()
             else:
                 st.caption("Chưa mời người thân nào.")
 
             st.divider()
-            st.subheader(" Lời mời đang chờ tôi phê duyệt")
+            st.subheader("📥 Lời mời đang chờ tôi phê duyệt")
             if pending_family_invites:
                 for inv in pending_family_invites:
                     icols = st.columns([3, 2, 2])
                     icols[0].markdown(f"Chủ tủ thuốc: **{inv.get('owner_phone')}**")
-                    if icols[1].button(" Chấp nhận", key=f"accept_{inv.get('id')}"):
+                    if icols[1].button("✅ Chấp nhận", key=f"accept_{inv.get('id')}"):
                         update_family_link_status(inv.get("id"), "accepted")
-                        st.success(" Đã chấp nhận làm người thân theo dõi.")
+                        st.success("✅ Đã chấp nhận làm người thân theo dõi.")
                         st.rerun()
-                    if icols[2].button(" Từ chối", key=f"decline_{inv.get('id')}"):
+                    if icols[2].button("❌ Từ chối", key=f"decline_{inv.get('id')}"):
                         update_family_link_status(inv.get("id"), "declined")
                         st.rerun()
             else:
                 st.caption("Không có lời mời nào đang chờ.")
 
             st.divider()
-            st.subheader(" Gửi nhắc nhở cho người thân tôi đang theo dõi")
+            st.subheader("📤 Gửi nhắc nhở cho người thân tôi đang theo dõi")
             owners_i_help = fetch_owners_i_help(st.session_state.user_phone)
             if not owners_i_help:
                 st.caption(
@@ -2292,10 +2322,10 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     if send_mode == "Đặt giờ cụ thể":
                         scheduled_time_obj = st.time_input("Giờ nhắc", value=dtime(8, 0))
                         scheduled_time = scheduled_time_obj.strftime("%H:%M")
-                    submit_send = st.form_submit_button(" Gửi nhắc nhở")
+                    submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
                     if submit_send:
                         if not reminder_msg.strip():
-                            st.warning(" Vui lòng nhập nội dung nhắc nhở.")
+                            st.warning("⚠️ Vui lòng nhập nội dung nhắc nhở.")
                         else:
                             ok, err = send_family_reminder(
                                 owner_phone=target_owner,
@@ -2305,13 +2335,13 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                                 target_time=scheduled_time,
                             )
                             if ok:
-                                st.success(" Đã gửi nhắc nhở! Người nhận sẽ thấy thông báo kèm âm thanh "
+                                st.success("✅ Đã gửi nhắc nhở! Người nhận sẽ thấy thông báo kèm âm thanh "
                                            "khi mở/đang mở SafePill (đúng giờ nếu bạn đặt lịch).")
                             else:
                                 st.error(FAMILY_TABLE_MISSING_MSG if "relation" in str(err).lower()
                                           or "does not exist" in str(err).lower() else f"Lỗi: {err}")
 
             st.caption(
-                " Lưu ý: nhắc nhở từ người thân chỉ hiển thị và phát âm thanh khi người nhận đang mở "
+                "ℹ️ Lưu ý: nhắc nhở từ người thân chỉ hiển thị và phát âm thanh khi người nhận đang mở "
                 "hoặc tải lại trang SafePill (chưa có push notification nền thật sự khi tắt trình duyệt)."
             )
