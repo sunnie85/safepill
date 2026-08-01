@@ -8,6 +8,8 @@ import hashlib
 import json
 import io
 import base64
+import os
+import sys
 from datetime import datetime, time as dtime, timedelta
 from supabase import create_client
 from google import genai
