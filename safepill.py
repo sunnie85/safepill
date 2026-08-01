@@ -1066,7 +1066,7 @@ if not st.session_state.onboarded:
     """
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
-        st.inframe(srcdoc=onboarding_html, height=500)
+        st.iframe(srcdoc=onboarding_html, height=500)
         if st.button("BẮT ĐẦU SỬ DỤNG ➔", type="primary", use_container_width=True):
             st.session_state.onboarded = True
             st.rerun()
@@ -1482,7 +1482,7 @@ else:
             sound_type = st.session_state.reminder_sound
             sound_volume = st.session_state.reminder_volume
             sound_js_fn = build_reminder_sound_script(sound_type, sound_volume)
-            components.html(f"""
+            st.iframe(srcdoc=f"""
             <script>
             const meds = {reminder_json};
             const soundType = "{sound_type}";
@@ -2168,7 +2168,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
 
             st.markdown("**Nghe thử âm thanh:**")
             test_sound_js = build_reminder_sound_script(selected_sound, selected_volume)
-            components.html(f"""
+            st.iframe(srcdoc=f"""
             <button id="testSoundBtn" style="padding:8px 16px;border-radius:8px;border:none;
             background:#006a62;color:white;cursor:pointer;font-size:14px;">▶ Nghe thử</button>
             <script>
