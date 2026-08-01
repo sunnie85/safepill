@@ -1425,7 +1425,7 @@ else:
                     if st.session_state.tts_enabled:
                         with cols[5]:
                             st.html(
-                                src=build_tts_button_html(
+                                build_tts_button_html(
                                     f"Đến giờ uống {med.get('Tên thuốc','')}, liều {med.get('Liều lượng','')}, "
                                     f"vào {med.get('Thời điểm','')}",
                                     button_label="🔊", key_suffix=key_name,
