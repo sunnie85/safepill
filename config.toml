@@ -1,0 +1,8 @@
+[theme]
+# Bảng màu lấy từ file giao diện landing page (teal-slate)
+primaryColor = "#0d9488"              # teal-600 — màu nút, checkbox, slider chính
+backgroundColor = "#f8fafc"           # slate-50 — nền trang
+secondaryBackgroundColor = "#ffffff"  # nền sidebar / card / input
+textColor = "#1e293b"                 # slate-800 — màu chữ chính
+font = "sans serif"                   # Streamlit không cho khai báo Google Font trực tiếp ở đây,
+                                       # font Inter thật sự được nạp qua CSS injection (xem theme_snippet.py)
