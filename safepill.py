@@ -1305,7 +1305,7 @@ else:
             unsafe_allow_html=True,
         )
 
-    st.title(" SafePill – Trung Tâm Quản Lý Dược Phẩm")
+    st.title(" SafePill – Trợ Lý Dược Phầm Thông Minh")
     st.caption(DISCLAIMER)
 
     m1, m2, m3 = st.columns(3)
