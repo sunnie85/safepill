@@ -1066,7 +1066,7 @@ if not st.session_state.onboarded:
     """
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
-        components.html(onboarding_html, height=460)
+        st.inframe(srcdoc=onboarding_html, height=500)
         if st.button("BẮT ĐẦU SỬ DỤNG ➔", type="primary", use_container_width=True):
             st.session_state.onboarded = True
             st.rerun()
