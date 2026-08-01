@@ -1046,6 +1046,22 @@ if not st.session_state.onboarded:
     st.markdown("<p style='text-align:center;color:#555;'>Trợ lý dược phẩm thông minh — quét đơn thuốc, "
                 "phát hiện tương tác nguy hiểm, nhắc uống thuốc đúng giờ.</p>", unsafe_allow_html=True)
     onboarding_html = """
+    <div style="
+    max-width: 100%; 
+    margin: 0 auto; 
+    padding: 20px 16px; 
+    box-sizing: border-box; 
+    border: 2px solid #1e293b; 
+    border-radius: 24px; 
+    text-align: center;
+    background-color: #ffffff;
+">
+    <img src="https://images.unsplash.com/photo-15..." style="width: 100%; height: 180px; object-fit: cover; border-radius: 16px; margin-bottom: 16px;">
+    <h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 8px;">Giải Pháp Số Hóa Y Tế</h2>
+    <p style="font-size: 0.875rem; color: #64748b; line-height: 1.5; margin: 0;">
+        Quét đơn thuốc bằng camera, tự động phát hiện tương tác thuốc nguy hiểm và nhắc bạn uống thuốc đúng giờ mỗi ngày.
+    </p>
+</div>
     <!DOCTYPE html><html><head><meta charset="utf-8">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
