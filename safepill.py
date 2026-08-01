@@ -1447,7 +1447,7 @@ else:
                         drug_name = med.get("Tên thuốc", "")
                         info = INTERACTION_LOOKUP.get(drug_name.strip().capitalize())
                         severity = info.get("severity") if info else "Chưa xác định"
-                        streak = record_missed_dose(drug_name)
+                        streak = record_missed_dose(drug_name, severity="Medium")
                         st.warning(f" Đã ghi nhận bỏ lỡ liều **{drug_name}** ({streak} lần liên tiếp).")
                         if streak >= 2 and severity in ("Cao", "Nghiêm trọng"):
                             sent_to = send_escalation_alert_to_family(
