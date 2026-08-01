@@ -45,7 +45,13 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ---- Mới: áp dụng theme giao diện SafePill (teal-slate) ----
+from theme_snippet import apply_safepill_theme
+apply_safepill_theme()
+
 DISCLAIMER = (
+    ...
     " SafePill là công cụ hỗ trợ nhắc nhở & tra cứu thông tin thuốc, "
     "KHÔNG thay thế chẩn đoán hoặc chỉ định của bác sĩ/dược sĩ. "
     "Trong trường hợp khẩn cấp, vui lòng liên hệ cơ sở y tế gần nhất."
@@ -742,6 +748,7 @@ def build_emergency_qr_text(profile: dict, med_data: list, conflicts: list, fami
         f"Nhom mau: {profile.get('blood_type') or 'Chua ro'}",
         "--- Danh sach thuoc dang dung ---",
     ]
+    
     valid_meds = [m for m in med_data if m.get('Tên thuốc')]
     if valid_meds:
         for m in valid_meds[:4]:  # Lấy tối đa 4 thuốc chính
@@ -755,7 +762,6 @@ def build_emergency_qr_text(profile: dict, med_data: list, conflicts: list, fami
         for fm in accepted_family[:2]:  # Lấy tối đa 2 người thân
             lines.append(f"- {fm.get('member_name') or 'Nguoi than'}: {fm.get('member_phone', '')}")
 
-    return "\n".join(lines)
     return "\n".join(lines)
 
 def generate_qr_image(text: str):
