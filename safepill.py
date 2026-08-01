@@ -1471,7 +1471,11 @@ else:
                     # ---- Mới: nút đọc to (Text-to-Speech), có thể tắt trong Cài đặt ----
                     if st.session_state.tts_enabled:
                         with cols[5]:
-                            st.html(
+                            # SỬA LỖI: st.html() KHÔNG nhận tham số height (gây TypeError:
+                            # "HtmlMixin.html() got an unexpected keyword argument 'height'" và
+                            # sập toàn bộ tab "Hôm nay"). Đoạn này có <script> cần chạy thật sự,
+                            # nên dùng components.html() (hỗ trợ height, chạy JS ổn định trong iframe).
+                            components.html(
                                 build_tts_button_html(
                                     f"Đến giờ uống {med.get('Tên thuốc','')}, liều {med.get('Liều lượng','')}, "
                                     f"vào {med.get('Thời điểm','')}",
@@ -1530,7 +1534,8 @@ else:
             sound_type = st.session_state.reminder_sound
             sound_volume = st.session_state.reminder_volume
             sound_js_fn = build_reminder_sound_script(sound_type, sound_volume)
-            st.html(f"""
+            # SỬA LỖI: st.html() không nhận height -> gây TypeError, dùng components.html() thay thế.
+            components.html(f"""
             <script>
             const meds = {reminder_json};
             const soundType = "{sound_type}";
@@ -2216,7 +2221,8 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
 
             st.markdown("**Nghe thử âm thanh:**")
             test_sound_js = build_reminder_sound_script(selected_sound, selected_volume)
-            st.html(f"""
+            # SỬA LỖI: st.html() không nhận height -> gây TypeError, dùng components.html() thay thế.
+            components.html(f"""
             <button id="testSoundBtn" style="padding:8px 16px;border-radius:8px;border:none;
             background:#006a62;color:white;cursor:pointer;font-size:14px;">▶ Nghe thử</button>
             <script>
