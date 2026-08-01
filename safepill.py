@@ -742,39 +742,54 @@ def build_emergency_qr_text(profile: dict, med_data: list, conflicts: list, fami
         f"Nhom mau: {profile.get('blood_type') or 'Chua ro'}",
         "--- Danh sach thuoc dang dung ---",
     ]
-    valid_meds = [m for m in med_data if m.get("Tên thuốc")]
+    valid_meds = [m for m in med_data if m.get('Tên thuốc')]
     if valid_meds:
-        for m in valid_meds:
-            lines.append(f"- {m.get('Tên thuốc','')} | Lieu: {m.get('Liều lượng','')} "
-                         f"| Gio: {m.get('Thời điểm','')}")
+        for m in valid_meds[:4]:  # Lấy tối đa 4 thuốc chính
+            lines.append(f"- {m.get('Tên thuốc', '')} | Lieu: {m.get('Liều lượng', '')}")
     else:
         lines.append("(Chua co du lieu thuoc)")
-    if conflicts:
-        lines.append("--- CANH BAO TUONG TAC THUOC ---")
-        for c in conflicts:
-            lines.append(f"! {c['thuoc_1']} + {c['thuoc_2']}: {c['severity']} - {c['effect']}")
-    accepted_family = [m for m in family_members if m.get("status") == "accepted"]
+        
+    accepted_family = [m for m in family_members if m.get("status") == "accepted"] if family_members else []
     if accepted_family:
-        lines.append("--- Lien he nguoi than khan cap ---")
-        for fm in accepted_family:
-            lines.append(f"- {fm.get('member_name') or 'Nguoi than'}: {fm.get('member_phone','')}")
-    lines.append("Luu y: Thong tin do nguoi dung tu khai bao trong app SafePill,")
-    lines.append("chi mang tinh tham khao ho tro cap cuu, khong thay the ho so benh an.")
-    return "\n".join(lines)
+        lines.append("--- Lien he nguoi than ---")
+        for fm in accepted_family[:2]:  # Lấy tối đa 2 người thân
+            lines.append(f"- {fm.get('member_name') or 'Nguoi than'}: {fm.get('member_phone', '')}")
 
+    return "\n".join(lines)
+    return "\n".join(lines)
 
 def generate_qr_image(text: str):
     """Trả về ảnh PIL của mã QR chứa `text`, hoặc None nếu thư viện qrcode chưa được cài."""
     if not QRCODE_AVAILABLE:
         return None
+
     clean_text = str(text) if text else "N/A"
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
-                        box_size=8, border=3)
-    qr.add_data(text)
-    qr.make(fit=True)
-    return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    
+    # Giới hạn độ dài tối đa an toàn cho mã QR (khoảng 1000-1200 ký tự)
+    if len(clean_text) > 1000:
+        clean_text = clean_text[:950] + "\n...(Da cat bớt do qua dai)"
 
+    # Khai báo QRCode KHÔNG truyền version cố định, để thư viện tự tính toán kích thước
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_L, # Dùng L để nhẹ dung lượng hơn M
+        box_size=8,
+        border=3,
+    )
 
+    try:
+        qr.add_data(clean_text)
+        qr.make(fit=True)
+        return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    except Exception:
+        # Phương án dự phòng cực kỳ an toàn nếu dữ liệu vẫn bị quá tải
+        qr_safe = qrcode.QRCode(
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=8,
+            border=3,
+        )
+        qr_safe.add_data(clean_text[:500])
+        qr_safe.make(fit=True)
+        return qr_safe.make_image(fill_color="black", back_color="white").convert("RGB")
 # ---- Mới: ảnh hình nền (wallpaper) khoá màn hình chứa mã QR khẩn cấp ----
 # Mục đích: cho phép quét mã NGAY TỪ MÀN HÌNH KHOÁ của điện thoại (iPhone/Android),
 # không cần mở khoá máy — quan trọng khi người dùng ngất xỉu/bất tỉnh và người xung
