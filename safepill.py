@@ -1047,14 +1047,15 @@ if not st.session_state.onboarded:
                 "phát hiện tương tác nguy hiểm, nhắc uống thuốc đúng giờ.</p>", unsafe_allow_html=True)
     onboarding_html = """
     <div style="
-    max-width: 100%; 
+    max-width: 380px; 
     margin: 0 auto; 
-    padding: 20px 16px; 
+    padding: 16px; 
     box-sizing: border-box; 
     border: 2px solid #1e293b; 
     border-radius: 24px; 
     text-align: center;
     background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05)
 ">
     <img src="https://images.unsplash.com/photo-15..." style="width: 100%; height: 180px; object-fit: cover; border-radius: 16px; margin-bottom: 16px;">
     <h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 8px;">Giải Pháp Số Hóa Y Tế</h2>
