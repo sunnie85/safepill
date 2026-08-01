@@ -1,3 +1,8 @@
+import streamlit as st
+
+def apply_safepill_theme():
+    st.markdown("""
+        <style>
 # =====================================================================================
 # THEME SAFEPILL — dán hàm này vào safepill.py, gọi NGAY SAU dòng st.set_page_config(...)
 # Mục đích: nhuộm lại giao diện Streamlit theo đúng bảng màu/phong cách của landing page
@@ -177,6 +182,23 @@ def apply_safepill_theme():
 #   st.set_page_config(...)
 #   from theme_snippet import apply_safepill_theme   # hoặc dán thẳng hàm vào file
 #   apply_safepill_theme()
+.stApp { background-color: #f8fafc; }
+        
+        h1 { color: var(--sp-teal-800) !important; font-weight: 800 !important; letter-spacing: -0.02em; }
+        h2, h3 { color: var(--sp-slate-800) !important; font-weight: 700 !important; }
+        
+        /* Sidebar CSS */
+        section[data-testid="stSidebar"] { background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important; }
+        section[data-testid="stSidebar"] * { color: #f0fdfa !important; }
+        
+        /* Primary Buttons CSS */
+        .stButton > button[kind="primary"] {
+            background-color: var(--sp-teal-600) !important;
+            border: none !important;
+            border-radius: 10px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True) 
 #
 # Chỉ cần 1 dòng gọi hàm ngay sau set_page_config, không cần sửa bất kỳ đoạn logic nào khác.
 # Toàn bộ nút, tab, sidebar, form, metric, alert trong app sẽ tự động đổi theo theme mới.
