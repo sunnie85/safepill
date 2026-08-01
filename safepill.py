@@ -47,6 +47,7 @@ st.set_page_config(
 )
 
 # ---- Mới: áp dụng theme giao diện SafePill (teal-slate) ----
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from theme_snippet import apply_safepill_theme
 apply_safepill_theme()
 
