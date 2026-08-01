@@ -1,18 +1,4 @@
 import streamlit as st
-
-def apply_safepill_theme():
-    st.markdown("""
-        <style>
-# =====================================================================================
-# THEME SAFEPILL — dán hàm này vào safepill.py, gọi NGAY SAU dòng st.set_page_config(...)
-# Mục đích: nhuộm lại giao diện Streamlit theo đúng bảng màu/phong cách của landing page
-# (teal-slate, font Inter, glass-card, bo góc, gradient) mà KHÔNG cần đổi bất kỳ logic nào
-# trong app. Chỉ cần thêm 1 dòng gọi hàm, không phải sửa từng widget.
-# =====================================================================================
-
-import streamlit as st
-
-
 def apply_safepill_theme():
     st.markdown("""
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
