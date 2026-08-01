@@ -51,7 +51,6 @@ from theme_snippet import apply_safepill_theme
 apply_safepill_theme()
 
 DISCLAIMER = (
-    ...
     " SafePill là công cụ hỗ trợ nhắc nhở & tra cứu thông tin thuốc, "
     "KHÔNG thay thế chẩn đoán hoặc chỉ định của bác sĩ/dược sĩ. "
     "Trong trường hợp khẩn cấp, vui lòng liên hệ cơ sở y tế gần nhất."
