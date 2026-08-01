@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import time
 import re
 import os
@@ -1305,7 +1304,7 @@ else:
             unsafe_allow_html=True,
         )
 
-    st.title(" SafePill – Trợ Lý Dược Phầm Thông Minh")
+    st.title(" SafePill – Trung Tâm Quản Lý Dược Phẩm")
     st.caption(DISCLAIMER)
 
     m1, m2, m3 = st.columns(3)
@@ -1424,8 +1423,8 @@ else:
                     # ---- Mới: nút đọc to (Text-to-Speech), có thể tắt trong Cài đặt ----
                     if st.session_state.tts_enabled:
                         with cols[5]:
-                            components.html(
-                                build_tts_button_html(
+                            st.iframe(
+                                src=build_tts_button_html(
                                     f"Đến giờ uống {med.get('Tên thuốc','')}, liều {med.get('Liều lượng','')}, "
                                     f"vào {med.get('Thời điểm','')}",
                                     button_label="🔊", key_suffix=key_name,
