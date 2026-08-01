@@ -767,7 +767,8 @@ def generate_qr_image(text: str):
     """Trả về ảnh PIL của mã QR chứa `text`, hoặc None nếu thư viện qrcode chưa được cài."""
     if not QRCODE_AVAILABLE:
         return None
-    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,
+    clean_text = str(text) if text else "N/A"
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                         box_size=8, border=3)
     qr.add_data(text)
     qr.make(fit=True)
