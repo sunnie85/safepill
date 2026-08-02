@@ -1080,34 +1080,37 @@ if not st.session_state.onboarded:
     st.markdown("<h1 style='text-align:center;color:#006a62;'>💊 SafePill</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;color:#555;'>Trợ lý dược phẩm thông minh — quét đơn thuốc, "
                 "phát hiện tương tác nguy hiểm, nhắc uống thuốc đúng giờ.</p>", unsafe_allow_html=True)
-    # SỬA LỖI GIAO DIỆN: bản gốc dựng 2 khối HTML card giới thiệu chồng lên nhau (1 khối <div> đơn
-    # giản dùng ảnh URL bị hỏng, và ngay sau đó là 1 tài liệu HTML đầy đủ <!DOCTYPE html>...</html>
-    # khác lặp lại gần như cùng nội dung). Khi render bằng st.html(), cả 2 khối bị nối chuỗi và hiển
-    # thị chồng chéo/lặp lại, gây rối giao diện màn hình onboarding. Nay chỉ giữ lại DUY NHẤT một
-    # khối "phone mockup" gọn gàng, dùng ảnh Unsplash hợp lệ.
+    # SỬA LỖI GIAO DIỆN #1: bản gốc dựng 2 khối HTML card giới thiệu chồng lên nhau, gây rối giao diện.
+    # Đã gộp về DUY NHẤT một khối "phone mockup" gọn gàng.
+    # SỬA LỖI GIAO DIỆN #2: khối card cũ phụ thuộc vào Tailwind CSS tải qua CDN
+    # (<script src="https://cdn.tailwindcss.com">). Khi script này tải chậm hoặc bị chặn, các class
+    # tiện ích (w-full, text-xs, flex...) không có tác dụng, khiến đoạn mô tả không được bó khổ đúng
+    # và bị .phone-container (overflow:hidden + text-align:center) cắt chữ đối xứng ở cả 2 mép (mất
+    # chữ đầu "Quét" và giữa dòng). Nay bỏ hẳn phụ thuộc CDN, dùng CSS thuần + word-wrap an toàn, và
+    # hiển thị qua components.html() (iframe cô lập) để tránh xung đột CSS với phần còn lại của trang.
     onboarding_html = """
-    <!DOCTYPE html><html><head><meta charset="utf-8">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-    body{font-family:sans-serif;background:transparent;display:flex;justify-content:center;margin:0;}
-    .phone-container{width:340px;height:440px;background:white;border-radius:40px;border:8px solid #1e293b;
-    overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,.5);display:flex;flex-direction:column;
-    justify-content:center;align-items:center;text-align:center;padding:20px;}
-    </style></head><body>
-    <div class="phone-container">
-    <div>
-    <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400"
-    class="w-full h-36 object-cover rounded-2xl mb-4">
-    <h2 class="text-xl font-bold text-slate-800">Giải Pháp Số Hóa Y Tế</h2>
-    <p class="text-slate-500 text-xs mt-2">Quét đơn thuốc bằng camera, tự động phát hiện tương tác
-    thuốc nguy hiểm và nhắc bạn uống thuốc đúng giờ mỗi ngày.</p>
+    <div style="display:flex;justify-content:center;font-family:sans-serif;">
+      <div style="box-sizing:border-box;width:320px;background:#ffffff;border-radius:32px;
+      border:6px solid #1e293b;overflow:hidden;box-shadow:0 20px 40px -12px rgba(0,0,0,.45);
+      padding:0 0 20px 0;">
+        <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400"
+        style="display:block;width:100%;height:150px;object-fit:cover;" />
+        <div style="box-sizing:border-box;width:100%;padding:16px 18px 0 18px;text-align:center;">
+          <h2 style="margin:0 0 8px 0;font-size:1.2rem;font-weight:700;color:#1e293b;">
+            Giải Pháp Số Hóa Y Tế
+          </h2>
+          <p style="margin:0;font-size:0.85rem;line-height:1.5;color:#64748b;
+          word-wrap:break-word;overflow-wrap:break-word;white-space:normal;">
+            Quét đơn thuốc bằng camera, tự động phát hiện tương tác thuốc nguy hiểm và nhắc
+            bạn uống thuốc đúng giờ mỗi ngày.
+          </p>
+        </div>
+      </div>
     </div>
-    </div>
-    </body></html>
     """
     c1, c2, c3 = st.columns([1, 1.2, 1])
     with c2:
-        st.html(onboarding_html)
+        components.html(onboarding_html, height=330, scrolling=False)
         if st.button("BẮT ĐẦU SỬ DỤNG ➔", type="primary", use_container_width=True):
             st.session_state.onboarded = True
             st.rerun()
@@ -1565,8 +1568,9 @@ else:
     # ---------------- TAB QUÉT ĐƠN THUỐC (Vision AI) ----------------
     with tab_ocr:
         st.header("📷 Số hóa đơn thuốc bằng AI")
-        st.info("Chụp ảnh đơn thuốc viết tay hoặc vỉ thuốc, hệ thống sẽ tự động bóc tách tên thuốc, "
-                 "liều lượng và thời điểm uống.")
+        st.info("Chụp ảnh trực tiếp, hoặc tải lên ảnh đơn thuốc/hồ sơ bệnh án đã có sẵn (viết tay, "
+                 "vỉ thuốc, hoặc ảnh scan) — hệ thống sẽ tự động bóc tách tên thuốc, liều lượng và "
+                 "thời điểm uống.")
 
         # ===== MỚI: Thông tin nơi khám / bác sĩ / nơi cấp thuốc — LUÔN HIỂN THỊ, áp dụng cho
         # CẢ quét AI lẫn nhập tay. Điền 1 lần ở đây, hệ thống sẽ tự gắn vào mọi thuốc được thêm
@@ -1586,23 +1590,11 @@ else:
         )
         st.divider()
 
-        # ===== MỚI: làm rõ 2 lựa chọn — có đơn thuốc để quét, hoặc không có thì nhập tay =====
-        has_prescription = st.radio(
-            "Bạn có đơn thuốc/vỉ thuốc để quét bằng camera không?",
-            ["Có, tôi sẽ chụp ảnh để AI tự nhận diện", "Không có, tôi sẽ nhập thuốc thủ công"],
-            horizontal=False,
-        )
-
-        if has_prescription.startswith("Có"):
-            img_file = st.camera_input("Chụp ảnh đơn thuốc / vỉ thuốc", key="clinical_vision_cam")
-            if img_file:
-                with st.spinner("🤖 Đang phân tích hình ảnh bằng AI..."):
-                    try:
-                        bytes_data = img_file.getvalue()
-                        pil_img = Image.open(io.BytesIO(bytes_data))
-                        prompt_khkt = """
-Bạn là chuyên gia bóc tách dữ liệu y tế. Phân tích hình ảnh này (đơn thuốc hoặc vỉ thuốc)
-và trả về DUY NHẤT một mảng JSON hợp lệ, không kèm markdown hay giải thích thêm, theo đúng cấu trúc:
+        # ---- Prompt dùng chung cho AI bóc tách dữ liệu y tế từ ảnh (đơn thuốc / vỉ thuốc / hồ sơ bệnh án) ----
+        PRESCRIPTION_VISION_PROMPT = """
+Bạn là chuyên gia bóc tách dữ liệu y tế. Phân tích hình ảnh này (đơn thuốc, vỉ thuốc, hoặc trang hồ sơ
+bệnh án có kê đơn thuốc) và trả về DUY NHẤT một mảng JSON hợp lệ, không kèm markdown hay giải thích thêm,
+theo đúng cấu trúc:
 [
     {
         "Tên thuốc": "...",
@@ -1621,37 +1613,116 @@ Trường "Màu sắc" và "Hình dạng" giúp người già không đọc đư
 Các trường "Nơi khám bệnh", "Bác sĩ điều trị", "Nơi cấp thuốc" thường lặp lại giống nhau cho mọi loại
 thuốc trong CÙNG một đơn/toa — nếu đơn chỉ ghi thông tin này một lần ở đầu hoặc cuối trang, hãy áp dụng
 lại giá trị đó cho TẤT CẢ các thuốc được bóc tách từ đơn đó.
+Nếu ảnh không chứa thông tin đơn thuốc/thuốc nào, hãy trả về mảng JSON rỗng: []
 """
-                        response = ai_gemini.models.generate_content(
-                            model="gemini-flash-latest",
-                            contents=[pil_img, prompt_khkt],
-                        )
-                        parsed_meds = extract_json_array(response.text)
-                        if not isinstance(parsed_meds, list) or not parsed_meds:
-                            raise ValueError("AI không trả về danh sách thuốc hợp lệ.")
-                        # ---- Mới: nếu người dùng đã điền ô "Thông tin nơi khám & cấp thuốc" ở trên,
-                        # ưu tiên dùng giá trị đó (đáng tin cậy hơn AI đoán từ ảnh); nếu để trống thì
-                        # giữ nguyên kết quả AI tự nhận diện được từ ảnh (nếu có).
-                        for pm in parsed_meds:
-                            if rx_clinic.strip():
-                                pm["Nơi khám bệnh"] = rx_clinic.strip()
-                            if rx_doctor.strip():
-                                pm["Bác sĩ điều trị"] = rx_doctor.strip()
-                            if rx_pharmacy.strip():
-                                pm["Nơi cấp thuốc"] = rx_pharmacy.strip()
-                        st.session_state.med_data.extend(parsed_meds)
-                        save_med_data_to_supabase()
-                        st.success(f"✅ Đã thêm {len(parsed_meds)} loại thuốc vào tủ thuốc!")
-                        st.rerun()
+
+        def analyze_prescription_image(pil_img, clinic_override: str, doctor_override: str,
+                                        pharmacy_override: str):
+            """
+            MỚI — Hàm dùng CHUNG để gọi AI Gemini bóc tách 1 ảnh đơn thuốc/hồ sơ bệnh án, dù ảnh đến
+            từ camera (st.camera_input) hay tải lên từ máy (st.file_uploader). Trả về (parsed_meds, None)
+            nếu thành công, hoặc (None, error_message) nếu thất bại — để nơi gọi tự quyết định hiển thị.
+            """
+            response = ai_gemini.models.generate_content(
+                model="gemini-flash-latest",
+                contents=[pil_img, PRESCRIPTION_VISION_PROMPT],
+            )
+            parsed_meds = extract_json_array(response.text)
+            if not isinstance(parsed_meds, list):
+                raise ValueError("AI không trả về danh sách thuốc hợp lệ.")
+            # ---- Nếu người dùng đã điền ô "Thông tin nơi khám & cấp thuốc" ở trên, ưu tiên dùng giá
+            # trị đó (đáng tin cậy hơn AI đoán từ ảnh); nếu để trống thì giữ nguyên kết quả AI. ----
+            for pm in parsed_meds:
+                if clinic_override.strip():
+                    pm["Nơi khám bệnh"] = clinic_override.strip()
+                if doctor_override.strip():
+                    pm["Bác sĩ điều trị"] = doctor_override.strip()
+                if pharmacy_override.strip():
+                    pm["Nơi cấp thuốc"] = pharmacy_override.strip()
+            return parsed_meds
+
+        # ===== SỬA: bổ sung lựa chọn thứ 3 "Tải ảnh có sẵn lên" (VD: ảnh chụp/scan hồ sơ bệnh án,
+        # đơn thuốc lưu sẵn trong máy/thư viện ảnh) — không bắt buộc phải dùng camera trực tiếp. =====
+        has_prescription = st.radio(
+            "Bạn muốn thêm thuốc bằng cách nào?",
+            [
+                "📷 Chụp ảnh trực tiếp bằng camera",
+                "📁 Tải ảnh có sẵn lên (đơn thuốc / hồ sơ bệnh án đã chụp hoặc scan)",
+                "✍️ Không có ảnh, tôi sẽ nhập thuốc thủ công",
+            ],
+            horizontal=False,
+        )
+
+        if has_prescription.startswith("📷"):
+            img_file = st.camera_input("Chụp ảnh đơn thuốc / vỉ thuốc", key="clinical_vision_cam")
+            if img_file:
+                with st.spinner("🤖 Đang phân tích hình ảnh bằng AI..."):
+                    try:
+                        pil_img = Image.open(io.BytesIO(img_file.getvalue()))
+                        parsed_meds = analyze_prescription_image(pil_img, rx_clinic, rx_doctor, rx_pharmacy)
+                        if not parsed_meds:
+                            st.warning("⚠️ AI không nhận diện được thuốc nào trong ảnh này. Hãy thử chụp "
+                                       "lại rõ nét hơn, hoặc nhập tay ở khung bên dưới.")
+                        else:
+                            st.session_state.med_data.extend(parsed_meds)
+                            save_med_data_to_supabase()
+                            st.success(f"✅ Đã thêm {len(parsed_meds)} loại thuốc vào tủ thuốc!")
+                            st.rerun()
                     except Exception as ex:
                         st.error(f"❌ Không thể phân tích ảnh: {ex}")
                         st.caption("Gợi ý: chụp ảnh rõ nét hơn, đủ sáng, hoặc chọn "
-                                   "\"Không có, tôi sẽ nhập thuốc thủ công\" ở trên để nhập tay.")
+                                   "\"Không có ảnh, tôi sẽ nhập thuốc thủ công\" ở trên để nhập tay.")
             manual_expanded = False
             manual_title = "➕ Thêm thuốc thủ công (nếu AI không nhận diện được, hoặc muốn bổ sung thêm)"
+
+        elif has_prescription.startswith("📁"):
+            # ---- MỚI: tải ảnh có sẵn lên (khác với chụp camera trực tiếp) — hỗ trợ nhiều ảnh cùng lúc
+            # để quét trọn 1 hồ sơ bệnh án nhiều trang, hoặc nhiều đơn thuốc/vỉ thuốc khác nhau. ----
+            uploaded_files = st.file_uploader(
+                "Tải ảnh đơn thuốc / hồ sơ bệnh án (có thể chọn nhiều ảnh cùng lúc)",
+                type=["png", "jpg", "jpeg", "webp"],
+                accept_multiple_files=True,
+                key="clinical_vision_upload",
+            )
+            if uploaded_files:
+                st.caption(f"Đã chọn {len(uploaded_files)} ảnh. Xem trước bên dưới:")
+                preview_cols = st.columns(min(len(uploaded_files), 4))
+                for i, uf in enumerate(uploaded_files):
+                    with preview_cols[i % len(preview_cols)]:
+                        st.image(uf, use_container_width=True, caption=uf.name)
+                if st.button("🤖 Phân tích tất cả ảnh bằng AI", type="primary", use_container_width=True,
+                             key="analyze_uploaded_btn"):
+                    all_parsed = []
+                    failed_files = []
+                    with st.spinner(f"🤖 Đang phân tích {len(uploaded_files)} ảnh bằng AI..."):
+                        for uf in uploaded_files:
+                            try:
+                                pil_img = Image.open(io.BytesIO(uf.getvalue()))
+                                parsed_meds = analyze_prescription_image(
+                                    pil_img, rx_clinic, rx_doctor, rx_pharmacy
+                                )
+                                all_parsed.extend(parsed_meds)
+                            except Exception as ex:
+                                failed_files.append((uf.name, str(ex)))
+                    if all_parsed:
+                        st.session_state.med_data.extend(all_parsed)
+                        save_med_data_to_supabase()
+                        st.success(f"✅ Đã thêm {len(all_parsed)} loại thuốc từ {len(uploaded_files)} ảnh "
+                                   f"vào tủ thuốc!")
+                    if failed_files:
+                        for fname, err in failed_files:
+                            st.error(f"❌ Không thể phân tích ảnh **{fname}**: {err}")
+                    if not all_parsed and not failed_files:
+                        st.warning("⚠️ AI không nhận diện được thuốc nào trong các ảnh đã tải lên. Hãy "
+                                   "thử ảnh rõ nét hơn, hoặc nhập tay ở khung bên dưới.")
+                    if all_parsed:
+                        st.rerun()
+            manual_expanded = False
+            manual_title = "➕ Thêm thuốc thủ công (nếu AI không nhận diện được, hoặc muốn bổ sung thêm)"
+
         else:
             st.success(
-                "👍 Không sao cả! Bạn có thể bỏ qua bước chụp ảnh và nhập trực tiếp thông tin thuốc "
+                "👍 Không sao cả! Bạn có thể bỏ qua bước chụp/tải ảnh và nhập trực tiếp thông tin thuốc "
                 "ở khung bên dưới — vẫn đầy đủ tính năng nhắc nhở, cảnh báo tương tác như khi quét đơn."
             )
             manual_expanded = True
