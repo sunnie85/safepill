@@ -2435,7 +2435,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 with st.form("send_family_reminder_form", clear_on_submit=True):
                     target_owner = st.selectbox("Gửi nhắc nhở cho", options=list(owner_options.keys()))
                     reminder_msg = st.text_area("Nội dung nhắc nhở", placeholder="VD: Nhớ uống thuốc huyết áp buổi tối nhé!")
-                   send_mode = st.radio("Thời điểm gửi", ["Gửi ngay", "Đặt giờ cụ thể"], horizontal=True)
+                    send_mode = st.radio("Thời điểm gửi", ["Gửi ngay", "Đặt giờ cụ thể"], horizontal=True)
                     scheduled_time = None
                     if send_mode == "Đặt giờ cụ thể":
                         st.caption("Chọn giờ và phút muốn gửi nhắc nhở:")
