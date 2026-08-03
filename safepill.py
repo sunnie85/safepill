@@ -2455,10 +2455,6 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     # chuẩn 24h, nên 24 giờ được quy về 00 giờ
                     real_hour = selected_hour % 24
                     scheduled_time = f"{real_hour:02d}:{selected_minute:02d}"
-
-                with st.form("send_family_reminder_form", clear_on_submit=True):
-                    target_owner = st.selectbox("Gửi nhắc nhở cho", options=list(owner_options.keys()))
-                    reminder_msg = st.text_area("Nội dung nhắc nhở", placeholder="VD: Nhớ uống thuốc huyết áp buổi tối nhé!")
                     submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
                     if submit_send:
                         if not reminder_msg.strip():
