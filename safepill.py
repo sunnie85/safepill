@@ -2435,11 +2435,23 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 with st.form("send_family_reminder_form", clear_on_submit=True):
                     target_owner = st.selectbox("Gửi nhắc nhở cho", options=list(owner_options.keys()))
                     reminder_msg = st.text_area("Nội dung nhắc nhở", placeholder="VD: Nhớ uống thuốc huyết áp buổi tối nhé!")
-                    send_mode = st.radio("Thời điểm gửi", ["Gửi ngay", "Đặt giờ cụ thể"], horizontal=True)
+                   send_mode = st.radio("Thời điểm gửi", ["Gửi ngay", "Đặt giờ cụ thể"], horizontal=True)
                     scheduled_time = None
                     if send_mode == "Đặt giờ cụ thể":
-                        scheduled_time_obj = st.time_input("Giờ nhắc", value=dtime(8, 0))
-                        scheduled_time = scheduled_time_obj.strftime("%H:%M")
+                        st.caption("Chọn giờ và phút muốn gửi nhắc nhở:")
+                        time_col1, time_col2 = st.columns(2)
+                        selected_hour = time_col1.selectbox(
+                            "Giờ", options=list(range(1, 25)), index=7,  # mặc định 8 giờ
+                            format_func=lambda h: f"{h:02d} giờ",
+                        )
+                        selected_minute = time_col2.selectbox(
+                            "Phút", options=list(range(0, 60)), index=0,
+                            format_func=lambda m: f"{m:02d} phút",
+                        )
+                        # Chuẩn hoá: "24 giờ" hiển thị cho người dùng dễ hiểu (đếm 1→24) nhưng
+                        # lưu xuống dạng HH:MM chuẩn 24h, nên 24 giờ được quy về 00 giờ (nửa đêm)
+                        real_hour = selected_hour % 24
+                        scheduled_time = f"{real_hour:02d}:{selected_minute:02d}"
                     submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
                     if submit_send:
                         if not reminder_msg.strip():
