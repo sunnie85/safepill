@@ -2432,9 +2432,8 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                 )
             else:
                 owner_options = {o.get("owner_phone"): o.get("owner_phone") for o in owners_i_help}
-                with st.form("send_family_reminder_form", clear_on_submit=True):
-                    target_owner = st.selectbox("Gửi nhắc nhở cho", options=list(owner_options.keys()))
-                    reminder_msg = st.text_area("Nội dung nhắc nhở", placeholder="VD: Nhớ uống thuốc huyết áp buổi tối nhé!")
+
+                # ---- Phần chọn giờ nằm NGOÀI form (đặt TRƯỚC form) để rerun ngay khi đổi radio ----
                 send_mode = st.radio(
                     "Thời điểm gửi", ["Gửi ngay", "Đặt giờ cụ thể"],
                     horizontal=True, key="family_reminder_send_mode",
@@ -2455,8 +2454,16 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     # chuẩn 24h, nên 24 giờ được quy về 00 giờ
                     real_hour = selected_hour % 24
                     scheduled_time = f"{real_hour:02d}:{selected_minute:02d}"
-                submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
-                if submit_send:
+
+                # ---- Form chỉ còn 2 ô nhập + nút submit, TẤT CẢ đều thụt lề trong khối with này ----
+                with st.form("send_family_reminder_form", clear_on_submit=True):
+                    target_owner = st.selectbox("Gửi nhắc nhở cho", options=list(owner_options.keys()))
+                    reminder_msg = st.text_area(
+                        "Nội dung nhắc nhở",
+                        placeholder="VD: Nhớ uống thuốc huyết áp buổi tối nhé!",
+                    )
+                    submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
+                    if submit_send:
                         if not reminder_msg.strip():
                             st.warning("⚠️ Vui lòng nhập nội dung nhắc nhở.")
                         else:
