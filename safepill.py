@@ -474,6 +474,23 @@ FAMILY_TABLE_MISSING_MSG = (
 )
 
 
+def _is_missing_table_error(err) -> bool:
+    """
+    SỬA LỖI — Trước đây chỉ nhận diện lỗi thiếu bảng qua 2 cụm từ "relation" và
+    "does not exist" (kiểu lỗi PostgreSQL thô), nên khi Supabase/PostgREST trả về lỗi theo
+    định dạng khác — VD: {"message": "Could not find the table 'public.safepill_family_reminders'
+    in the schema cache", "code": "PGRST205", ...} — code không nhận ra, khiến người dùng thấy
+    thông báo lỗi kỹ thuật khó hiểu thay vì hướng dẫn chạy migration SQL rõ ràng. Hàm này gộp
+    thêm các dấu hiệu phổ biến của PostgREST khi bảng chưa tồn tại.
+    """
+    text = str(err).lower()
+    signals = (
+        "relation", "does not exist", "could not find the table",
+        "schema cache", "pgrst205", "42p01",
+    )
+    return any(sig in text for sig in signals)
+
+
 def create_family_invite(owner_phone: str, member_phone: str, member_name: str = "") -> tuple:
     """Chủ tủ thuốc (owner) mời một số điện thoại người thân (member) theo dõi/nhắc nhở mình."""
     try:
@@ -1967,8 +1984,8 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     st.session_state.adherence_logged_today = True
                     st.success("✅ Đã lưu snapshot tuân thủ hôm nay.")
                 else:
-                    st.error(ADHERENCE_HISTORY_MISSING_MSG if "relation" in str(err).lower()
-                              or "does not exist" in str(err).lower() else f"Lỗi: {err}")
+                    st.error(ADHERENCE_HISTORY_MISSING_MSG if _is_missing_table_error(err)
+                              else f"Lỗi: {err}")
 
         st.divider()
         st.subheader("📉 Biểu đồ tuân thủ theo thời gian")
@@ -2347,8 +2364,8 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                             st.success(f"✅ Đã gửi lời mời đến {invite_phone_clean}.")
                             st.rerun()
                         else:
-                            st.error(FAMILY_TABLE_MISSING_MSG if "relation" in str(err).lower()
-                                      or "does not exist" in str(err).lower() else f"Lỗi: {err}")
+                            st.error(FAMILY_TABLE_MISSING_MSG if _is_missing_table_error(err)
+                                      else f"Lỗi: {err}")
 
             my_family_members = fetch_family_members(st.session_state.user_phone)
             if my_family_members:
@@ -2360,8 +2377,15 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     lcols[1].markdown(link.get("member_phone", ""))
                     lcols[2].markdown(status_label.get(link.get("status"), link.get("status", "")))
                     if lcols[3].button("🗑️", key=f"del_link_{link.get('id')}"):
-                        delete_family_link(link.get("id"))
-                        st.rerun()
+                        # SỬA LỖI: trước đây bỏ qua kết quả trả về (ok, err) nên luôn rerun như thể
+                        # xoá thành công dù Supabase có thể đã từ chối (thường do thiếu RLS policy
+                        # DELETE cho vai trò anon), khiến người thân "xoá mãi không mất".
+                        ok, err = delete_family_link(link.get("id"))
+                        if ok:
+                            st.rerun()
+                        else:
+                            st.error(FAMILY_TABLE_MISSING_MSG if _is_missing_table_error(err)
+                                      else f"❌ Không xoá được liên kết: {err}")
             else:
                 st.caption("Chưa mời người thân nào.")
 
@@ -2372,12 +2396,29 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     icols = st.columns([3, 2, 2])
                     icols[0].markdown(f"Chủ tủ thuốc: **{inv.get('owner_phone')}**")
                     if icols[1].button("✅ Chấp nhận", key=f"accept_{inv.get('id')}"):
-                        update_family_link_status(inv.get("id"), "accepted")
-                        st.success("✅ Đã chấp nhận làm người thân theo dõi.")
-                        st.rerun()
+                        # SỬA LỖI QUAN TRỌNG: đây chính là lỗi "bấm Chấp nhận mãi không được" —
+                        # trước đây kết quả trả về (ok, err) bị bỏ qua nên UI LUÔN báo "Đã chấp
+                        # nhận thành công" dù Supabase thực tế từ chối cập nhật (thường do thiếu
+                        # RLS policy UPDATE cho vai trò anon trên bảng safepill_family_links).
+                        # Lời mời vì vậy không bao giờ chuyển sang "accepted" và cứ hiện lại mãi.
+                        ok, err = update_family_link_status(inv.get("id"), "accepted")
+                        if ok:
+                            st.success("✅ Đã chấp nhận làm người thân theo dõi.")
+                            st.rerun()
+                        else:
+                            st.error(
+                                FAMILY_TABLE_MISSING_MSG if _is_missing_table_error(err) else
+                                f"❌ Không cập nhật được trạng thái lời mời. Nguyên nhân thường gặp: "
+                                f"bảng 'safepill_family_links' chưa có RLS policy cho phép UPDATE với "
+                                f"vai trò anon. Chi tiết lỗi: {err}"
+                            )
                     if icols[2].button("❌ Từ chối", key=f"decline_{inv.get('id')}"):
-                        update_family_link_status(inv.get("id"), "declined")
-                        st.rerun()
+                        ok, err = update_family_link_status(inv.get("id"), "declined")
+                        if ok:
+                            st.rerun()
+                        else:
+                            st.error(FAMILY_TABLE_MISSING_MSG if _is_missing_table_error(err)
+                                      else f"❌ Không cập nhật được trạng thái lời mời: {err}")
             else:
                 st.caption("Không có lời mời nào đang chờ.")
 
@@ -2415,8 +2456,8 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                                 st.success("✅ Đã gửi nhắc nhở! Người nhận sẽ thấy thông báo kèm âm thanh "
                                            "khi mở/đang mở SafePill (đúng giờ nếu bạn đặt lịch).")
                             else:
-                                st.error(FAMILY_TABLE_MISSING_MSG if "relation" in str(err).lower()
-                                          or "does not exist" in str(err).lower() else f"Lỗi: {err}")
+                                st.error(FAMILY_TABLE_MISSING_MSG if _is_missing_table_error(err)
+                                          else f"Lỗi: {err}")
 
             st.caption(
                 "ℹ️ Lưu ý: nhắc nhở từ người thân chỉ hiển thị và phát âm thanh khi người nhận đang mở "
