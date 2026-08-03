@@ -2455,7 +2455,7 @@ Hãy trả lời ngắn gọn, chính xác, dễ hiểu bằng tiếng Việt.
                     # chuẩn 24h, nên 24 giờ được quy về 00 giờ
                     real_hour = selected_hour % 24
                     scheduled_time = f"{real_hour:02d}:{selected_minute:02d}"
-                    submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
+                submit_send = st.form_submit_button("📨 Gửi nhắc nhở")
                     if submit_send:
                         if not reminder_msg.strip():
                             st.warning("⚠️ Vui lòng nhập nội dung nhắc nhở.")
